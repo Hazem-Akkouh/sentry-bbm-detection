@@ -1,7 +1,6 @@
 # /scripts : Detail Guide
 
-Emulator scripts that reproduce each documented malware behavior for validation purposes. **The real malware was never sourced, downloaded, or executed at any point in this project** : every script here is original code, authored from scratch based on publicly documented behavior (BAE Systems, U.S. DOJ, Oosthoek & Doerr 2021).
-
+Emulator scripts that reproduce each documented malware behavior for validation purposes.Every script here is original code, authored from scratch based on my own Malware analysis and RE.
 | File | Reproduces | Validates | Run as |
 |---|---|---|---|
 | `dummy_host.cs` | A process with a stand-in DLL loaded (target for Rule 1) | Rule 1 (setup) | Compile with `csc.exe dummy_host.cs`, then run the .exe |
