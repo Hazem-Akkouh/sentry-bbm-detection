@@ -1,3 +1,4 @@
+
 # SENTRY: From a 2016 Bank Heist to Deployable Detection Rules
 ### A Full Technical Walkthrough : Static Analysis, Reverse Engineering, Detection Engineering, and Regulatory Mapping of the Bangladesh Bank SWIFT Toolkit
 
@@ -8,7 +9,7 @@
 
 ---
 
-> [PHOTO: A clean cover-image banner : SWIFT logo + a stylized "SENTRY" wordmark, dark security-themed background. This is the LinkedIn-post hero image.]
+<img width="1363" height="1154" alt="ChatGPT Image Sep 20, 2026, 04_49_01 PM" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
 
 ---
 
