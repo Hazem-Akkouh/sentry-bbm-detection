@@ -588,7 +588,7 @@ DWORD RenameRandomAndDelete(const char *path, bool isDir)
 
 A minimal, purpose-built utility. 6 flagged imports, 19 functions total, 16 KB. Its sole job: destroy a file it is pointed at, then destroy itself.
 
-<p>
+<p align="center">
    <img width="529" height="808" alt="image" src="https://github.com/user-attachments/assets/c15de8fa-37f1-4202-9eec-04400880fb85" />
 </p>
 
@@ -1436,14 +1436,14 @@ Every rule below was validated by (1) running its emulator script, (2) confirmin
 
 | Rule | Emulator run | Telemetry confirmed | Result |
 |---|---|---|---|
-| 1 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `SourceImage: powershell.exe`, `TargetImage: dummy_host.exe`, `GrantedAccess: 0x1028` | ✅ Confirmed |
-| 2 | `simulate_sqlplus_attack.ps1` | Process tree (`cmd.exe` → `sqlplus`) + Oracle audit trail entry, `DBUSERNAME: SYS` | ✅ Confirmed |
-| 3 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text captured, correct TEXT-then-MESG order | ✅ Confirmed |
-| 4 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` captured | ✅ Confirmed |
-| 5 | Dummy SWIFT message generator (mixed content types, running continuously) | Sysmon Event 11, `.prc` files created in `mcm\in\` with real field content | ✅ Confirmed |
-| 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) : **required discovering FileDelete was never enabled at all, then the crash bug above** | ✅ Confirmed, after fixing 2 real Sysmon defects |
-| 7 | `self_delete_batch_sim.ps1` | Full process tree captured: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0`; Event 11 for `.bat` creation in `%TEMP%` | ✅ Confirmed |
-| 8 | `binary_swap_sim.ps1` | Event 11 for `nroff.exe` creation (both the pre- and post-swap versions) | ✅ Confirmed |
+| 1 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `SourceImage: powershell.exe`, `TargetImage: dummy_host.exe`, `GrantedAccess: 0x1028` |  Confirmed |
+| 2 | `simulate_sqlplus_attack.ps1` | Process tree (`cmd.exe` → `sqlplus`) + Oracle audit trail entry, `DBUSERNAME: SYS` |  Confirmed |
+| 3 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text captured, correct TEXT-then-MESG order |  Confirmed |
+| 4 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` captured |  Confirmed |
+| 5 | Dummy SWIFT message generator (mixed content types, running continuously) | Sysmon Event 11, `.prc` files created in `mcm\in\` with real field content |  Confirmed |
+| 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) : **required discovering FileDelete was never enabled at all, then the crash bug above** |  Confirmed, after fixing 2 real Sysmon defects |
+| 7 | `self_delete_batch_sim.ps1` | Full process tree captured: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0`; Event 11 for `.bat` creation in `%TEMP%` |  Confirmed |
+| 8 | `binary_swap_sim.ps1` | Event 11 for `nroff.exe` creation (both the pre- and post-swap versions) |  Confirmed |
 
 ### 9.2 Vendor-Neutral Conversion Evidence
 
