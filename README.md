@@ -1,8 +1,8 @@
-# SENTRY — Behavioral Detection for the 2016 Bangladesh Bank SWIFT Toolkit
+# SENTRY  Behavioral Detection for the 2016 Bangladesh Bank SWIFT Toolkit
 
-**8 vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping — for a malware family that had zero published detection content for eight years.**
+**8 vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping  for a malware family that had zero published detection content for eight years.**
 
-> 📄 **Full technical write-up:** [SENTRY01.md](./SENTRY01.md) — the complete report (static analysis, Ghidra deep-dive, attribution, IOCs, all 8 rules explained, environment build, testing, GRC mapping).
+> 📄 **Full technical write-up:** [SENTRY01.md](./SENTRY01.md)  the complete report (static analysis, Ghidra deep-dive, attribution, IOCs, all 8 rules explained, environment build, testing, GRC mapping).
 > 📑 **Companion academic paper:** *link coming soon*
 
 ---
@@ -11,7 +11,7 @@
 
 | Path | Contents |
 |---|---|
-| [`SENTRY01.md`](./SENTRY01.md) | The full technical report — read this first if you want the whole story |
+| [`SENTRY01.md`](./SENTRY01.md) | The full technical report  read this first if you want the whole story |
 | [`/rules`](./rules) | 8 SIGMA detection rules, ready to use with pySigma or [sigconverter.io](https://sigconverter.io) |
 | [`/scripts`](./scripts) | Emulator scripts that reproduce each documented malware behavior (the real malware was never sourced or used) |
 | [`/sysmon`](./sysmon) | Working Sysmon configuration used to validate the rules |
@@ -20,7 +20,7 @@
 
 ## Quick summary
 
-In 2016, an attacker used a three-binary Windows malware toolkit (`evtdiag.exe`, `evtsys.exe`, `nroff_b.exe`) to patch SWIFT Alliance Access's local Oracle database library in memory, delete fraudulent transaction records, and forge printed confirmations — enabling the attempted theft of $951M and the successful diversion of $81M from Bangladesh Bank. Despite extensive vendor and government forensic coverage since, no deployable detection content for this specific toolkit had ever been published.
+In 2016, an attacker used a three-binary Windows malware toolkit (`evtdiag.exe`, `evtsys.exe`, `nroff_b.exe`) to patch SWIFT Alliance Access's local Oracle database library in memory, delete fraudulent transaction records, and forge printed confirmations  enabling the attempted theft of $951M and the successful diversion of $81M from Bangladesh Bank. Despite extensive vendor and government forensic coverage since, no deployable detection content for this specific toolkit had ever been published.
 
 This project:
 - Extended the public reverse-engineering record of all three binaries (30+ findings not in prior public reports, including two corrections to the only peer-reviewed academic paper on this malware)
@@ -50,8 +50,8 @@ See [`/docs/environment.md`](./docs/environment.md) for the full build walkthrou
 
 ## Corrections welcome
 
-If you spot an error — especially in the reverse-engineering sections of [`SENTRY01.md`](./SENTRY01.md) — please open an issue. This project corrected two claims in prior peer-reviewed literature during its own development; get in touch if you find something here that needs the same treatment.
+If you spot an error  especially in the reverse-engineering sections of [`SENTRY01.md`](./SENTRY01.md)  please open an issue. This project corrected two claims in prior peer-reviewed literature during its own development; get in touch if you find something here that needs the same treatment.
 
 ## Author
 
-**Hazem Akkouh** — ENSA Kénitra, Morocco
+**Hazem Akkouh**  ENSA Kénitra, Morocco
