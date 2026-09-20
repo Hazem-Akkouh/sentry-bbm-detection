@@ -5,7 +5,9 @@
 **Author:** Hazem Akkouh
 
 ---
-
+<p align="center">
+  <img width="600" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
+</p>
 <img width="1363" height="1154" alt="ChatGPT Image Sep 20, 2026, 04_49_01 PM" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
 
 ---
