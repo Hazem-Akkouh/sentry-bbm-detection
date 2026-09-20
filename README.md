@@ -6,7 +6,7 @@
 
 ---
 <p align="center">
-  <img width="1363" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
+  <img width="1363" alt="Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
 </p>
 
 ---
@@ -59,7 +59,7 @@ The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.d
 ```
 
 <p align="center">
-  <img width="1054" height="401" alt="image" src="https://github.com/user-attachments/assets/6869f3c8-6969-4feb-8c5e-cd50ff864a75" />
+ <img width="1916" height="777" alt="Capture d&#39;écran 2026-09-06 015907" src="https://github.com/user-attachments/assets/3114b424-fc52-4ee2-8c80-426d48221382" />
 </p>
 
 ### 2.2 The Three-Binary Architecture
