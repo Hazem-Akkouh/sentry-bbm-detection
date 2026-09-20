@@ -59,7 +59,8 @@ The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.d
 ```
 
 <p align="center">
-  <img width="1363" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
+  <img width="1054" height="401" alt="image" src="https://github.com/user-attachments/assets/6bb31be7-d1f9-461c-a57d-5a38fdf19206" />
+
 </p>
 
 ### 2.2 The Three-Binary Architecture
@@ -145,7 +146,16 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 
 This function runs after the Windows service starts, called from the CLI dispatcher's `-svc` branch. It orchestrates the entire attack: init, wait for user login, patch, spawn background thread, loop, cleanup.
 
-> [SCHEMA: Insert the two-part flowchart from the RE report : "Startup Phase" (init globals → load config → poll for login → patch liboradb → spawn C2 beacon) and "Main Loop + Cleanup" (PRT cleanup → housekeeping → Oracle sync → SWIFT process → kill-switch check → cleanup chain).]
+<p align="center">
+  <img width="820" height="1429" alt="image" src="https://github.com/user-attachments/assets/80f61cb6-afd8-4d48-8415-212cf9a504f0" />
+</p>
+
+
+<p align="center">
+  <img width="875" height="1491" alt="image" src="https://github.com/user-attachments/assets/836320f9-99dd-479a-9014-b8c8b9c4ff6c" />
+</p>
+
+
 
 **Reconstructed pseudocode (real function/variable names restored):**
 
