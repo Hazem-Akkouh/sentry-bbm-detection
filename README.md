@@ -31,7 +31,7 @@ This project:
 
 ## Using the rules
 
-Each file in [`/rules`](./rules) is a standard SIGMA rule. Convert to your SIEM's native query language with [pySigma](https://github.com/SigmaHQ/pySigma) or the free web interface at [sigconverter.io](https://sigconverter.io):
+Each file in [`/rules`](./rules) is a standard SIGMA rule. Convert to your SIEM's native query language with the free web interface at [sigconverter.io](https://sigconverter.io):
 
 ```bash
 pip install pysigma pysigma-backend-splunk
