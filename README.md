@@ -3,9 +3,6 @@
 ### A Full Technical Walkthrough : Static Analysis, Reverse Engineering, Detection Engineering, and Regulatory Mapping of the Bangladesh Bank SWIFT Toolkit
 
 **Author:** Hazem Akkouh
-**Context:** ENSA Kénitra, Morocco : independent technical research project
-**Companion academic paper:** [link to be added]
-**Full rule set / lab configs / scripts:** [GitHub repo link to be added]
 
 ---
 
@@ -571,7 +568,8 @@ DWORD RenameRandomAndDelete(const char *path, bool isDir)
 
 A minimal, purpose-built utility. 6 flagged imports, 19 functions total, 16 KB. Its sole job: destroy a file it is pointed at, then destroy itself.
 
-> [SCHEMA: Insert the "evtsys.exe Execution Flow" diagram : argc check → SecureOverwriteAndDelete(argv[1]) → retry up to 50x with 1s sleep → self-delete via evchk.bat.]
+<img width="529" height="808" alt="image" src="https://github.com/user-attachments/assets/c15de8fa-37f1-4202-9eec-04400880fb85" />
+
 
 ```c
 DWORD main(int argc, char **argv)
