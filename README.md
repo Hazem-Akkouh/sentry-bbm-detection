@@ -6,9 +6,8 @@
 
 ---
 <p align="center">
-  <img width="600" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
+  <img width="1363" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
 </p>
-<img width="1363" height="1154" alt="ChatGPT Image Sep 20, 2026, 04_49_01 PM" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
 
 ---
 
@@ -39,7 +38,6 @@ Eight years later, if you're a SOC analyst at a bank running SWIFT Alliance Acce
 
 This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables, 30+ novel findings not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
 
-> [PHOTO: The BAE Systems "Two Bytes to $951m" blog post screenshot, or a simple infographic: $951M attempted → $81M stolen → $0 detection rules published in 8 years. This is the hook visual.]
 
 ---
 
@@ -60,7 +58,9 @@ The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.d
 4E 38 1F A7 7F 08 CC AA 0D 56 ED EF F9 ED 08 EF
 ```
 
-> [PHOTO: CyberChef screenshot showing the RC4 decryption recipe and the decrypted gpca.dat output : you already have this from the RE report.]
+<p align="center">
+  <img width="1363" alt="ChatGPT Image" src="https://github.com/user-attachments/assets/82663675-939b-4515-90c5-b77a56e0a99c" />
+</p>
 
 ### 2.2 The Three-Binary Architecture
 
@@ -70,7 +70,11 @@ The three executables form a coordinated attack surface, not three independent t
 - **`evtdiag.exe`** can consume and act on (the operational engine : patching, SQL, printing, C2), and
 - **`evtsys.exe`** destroys `evtdiag.exe` when the operation ends.
 
-> [SCHEMA: Insert the "Three-Binary Attack Architecture" diagram here : the box-and-arrow diagram from the RE report showing SWIFT Alliance Access → Alliance directories (mcm/mcp/mcs/mcf) → evtdiag.exe ↔ liboradb.dll / Oracle DB / C2 Server, with nroff_b.exe and evtsys.exe as satellite processes. Redraw this yourself rather than reusing any existing figure directly, to keep it clean for both LinkedIn and GitHub.]
+<p align="center">
+  <img width="1045" height="712" alt="image" src="https://github.com/user-attachments/assets/34e58418-88e4-4e62-b5db-6e61da13c018" />
+</p>
+
+
 
 **How they got installed together:** `evtdiag`'s cleanup code calls `GetModuleFileNameA` to obtain its own path, strips the filename, and appends `evtsys.exe` : enforcing that both binaries live in the same directory. Neither binary contains self-installation code; the Windows service (`diagsysevt`) and initial file placement were performed by an upstream loader outside this analysis's scope : almost certainly the NESTEGG backdoor documented separately by the DOJ.
 
@@ -86,8 +90,9 @@ All three binaries were compiled in a tight **46-hour window**:
 
 The kill switch fires at **2016-02-06 06:00 local time**. The main operational binary was compiled less than 18 hours before the operation was designed to end. This is not the signature of a team that tested carefully over months : it reads as a rushed final build, plausibly incorporating last-minute reconnaissance about the victim environment.
 
-> [SCHEMA: Insert the "Operational Timeline" flowchart from the RE report : compile times → fraudulent transactions sent → kill switch fires → cleanup chain executes.]
-
+<p align="center">
+  <img width="779" height="672" alt="image" src="https://github.com/user-attachments/assets/11eb55b6-846f-41c2-b728-84019cc4e87c" />
+</p>
 ### 2.4 The Environment the Malware Assumes
 
 Every path is built at startup from a template string at `.data:0x40F0A4`:
@@ -102,7 +107,7 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 
 **This gives a base directory of:** `[ROOT]:\Users\Administrator\AppData\Local\Allians\`
 
-> ⚠️ The malware assumes it is running under the literal "Administrator" account. If the operator installed it under any other username, this path construction silently fails.
+>  The malware assumes it is running under the literal "Administrator" account. If the operator installed it under any other username, this path construction silently fails.
 
 **Directory layout under "Allians":**
 
@@ -131,6 +136,10 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 ## 3. Ghidra Deep-Dive
 
 > A note on method, stated plainly: this section goes beyond what any prior public analysis of this toolkit has documented : more functions named, more mechanisms explained, more cross-binary connections drawn. That's worth stating clearly, but it comes with an equally clear caveat: this analysis benefited from modern tooling (Ghidra's decompiler) and was conducted years after the original researchers worked under active incident-response pressure and disclosure constraints. What they produced under those conditions was, frankly, extraordinary. Reading raw Ghidra decompilation where every variable is `local_10` and every function is `FUN_00402580` : and making sense of it : is a skill that takes years. The goal of this section is to build understanding, not to claim precedence.
+
+<p align="center">
+  <img width="368" height="355" alt="image" src="https://github.com/user-attachments/assets/aa29030a-d82a-40e8-bf0b-36253c582ad7" />
+</p>
 
 ### 3.1 The Service Main Loop : `FUN_00409af0`
 
