@@ -42,15 +42,6 @@ sigma convert -t splunk rules/SENTRY_Rule1_liboradb_access.yml
 
 See [`/docs/environment.md`](./docs/environment.md) for the full build walkthrough, or jump straight to [`/sql`](./sql) and [`/sysmon`](./sysmon) for the raw configuration files.
 
-## Status
-
-🔒 This repository was private during development. Now public and open for review, corrections, and reuse.
-
-⚠️ **No real malware sample was ever sourced, downloaded, or executed at any point in this project.** All emulator scripts in `/scripts` were authored from scratch based on documented behavior from public forensic sources (BAE Systems, U.S. DOJ, Oosthoek & Doerr 2021).
-
-## Corrections welcome
-
-If you spot an error  especially in the reverse-engineering sections of [`SENTRY01.md`](./SENTRY01.md)  please open an issue. This project corrected two claims in prior peer-reviewed literature during its own development; get in touch if you find something here that needs the same treatment.
 
 ## Author
 
