@@ -155,6 +155,7 @@ This function runs after the Windows service starts, called from the CLI dispatc
   <img width="875" height="1491" alt="image" src="https://github.com/user-attachments/assets/836320f9-99dd-479a-9014-b8c8b9c4ff6c" />
 </p>
 
+</n>
 
 
 **Reconstructed pseudocode (real function/variable names restored):**
@@ -587,8 +588,9 @@ DWORD RenameRandomAndDelete(const char *path, bool isDir)
 
 A minimal, purpose-built utility. 6 flagged imports, 19 functions total, 16 KB. Its sole job: destroy a file it is pointed at, then destroy itself.
 
-<img width="529" height="808" alt="image" src="https://github.com/user-attachments/assets/c15de8fa-37f1-4202-9eec-04400880fb85" />
-
+<p>
+   <img width="529" height="808" alt="image" src="https://github.com/user-attachments/assets/c15de8fa-37f1-4202-9eec-04400880fb85" />
+</p>
 
 ```c
 DWORD main(int argc, char **argv)
@@ -1474,22 +1476,22 @@ any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sq
 ```
 
 <p align="center">
-  <img width="1919" height="717" alt="2k" src="https://github.com/user-attachments/assets/3e8b5631-194b-4046-9824-3b17d49fb303" />
+  <img width="1439" height="835" alt="2k" src="https://github.com/user-attachments/assets/3e8b5631-194b-4046-9824-3b17d49fb303" />
 </p>
 ```
 
 <p align="center">
-  <img width="1449" height="840" alt="3k" src="https://github.com/user-attachments/assets/081e76bd-0772-415c-a561-cf5633615943" />
+  <img width="1439" height="835" alt="3k" src="https://github.com/user-attachments/assets/081e76bd-0772-415c-a561-cf5633615943" />
 </p>
 ```
 
 <p align="center">
-  <img width="1446" height="853" alt="4s" src="https://github.com/user-attachments/assets/6713b56c-d1c0-42c5-abaf-eaf4c5077560" />
+  <img width="1439" height="835" alt="4s" src="https://github.com/user-attachments/assets/6713b56c-d1c0-42c5-abaf-eaf4c5077560" />
 </p>
 ```
 
 <p align="center">
-  <img width="928" height="538" alt="Capture d&#39;écran 2026-09-20 012837" src="https://github.com/user-attachments/assets/a28ac51f-90a1-482f-b7d7-c337e143bd3c" />
+  <img width="1439" height="835" alt="Capture d&#39;écran 2026-09-20 012837" src="https://github.com/user-attachments/assets/a28ac51f-90a1-482f-b7d7-c337e143bd3c" />
 </p>
 ---
 
