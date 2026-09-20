@@ -59,8 +59,7 @@ The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.d
 ```
 
 <p align="center">
-  <img width="1054" height="401" alt="image" src="https://github.com/user-attachments/assets/6bb31be7-d1f9-461c-a57d-5a38fdf19206" />
-
+  <img width="1054" height="401" alt="image" src="https://github.com/user-attachments/assets/6869f3c8-6969-4feb-8c5e-cd50ff864a75" />
 </p>
 
 ### 2.2 The Three-Binary Architecture
