@@ -93,6 +93,7 @@ The kill switch fires at **2016-02-06 06:00 local time**. The main operational b
 <p align="center">
   <img width="779" height="672" alt="image" src="https://github.com/user-attachments/assets/11eb55b6-846f-41c2-b728-84019cc4e87c" />
 </p>
+
 ### 2.4 The Environment the Malware Assumes
 
 Every path is built at startup from a template string at `.data:0x40F0A4`:
@@ -377,7 +378,7 @@ undefined4 FUN_00402580(HANDLE hProc, DWORD moduleBase, int direction)
    c. If `StrStrIA(moduleName, "liboradb.dll")` matches: call the patcher, increment found/patched counters
 4. Print `"PI (found, patched)"` or `"PU (found, unpatched)"`
 
-> ⚠️ **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch : `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 1 (Section 7) detects.
+>  **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch : `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 1 (Section 7) detects.
 
 ### 3.4 The C2 Beacon : `FUN_00408f40` and `LAB_00409130`
 
@@ -439,7 +440,6 @@ DWORD SendC2Beacon(const char *payload)
 
 When the main loop exits (kill switch or STOP command), a **five-stage cleanup sequence** runs. By the time it completes: no binaries, no config, no log, no service registration.
 
-> [SCHEMA: Insert the full "Self-Cleanup Chain" diagram from the RE report : kill switch fires → log ST-100, sleep 10s → SecureDelete(gpca.dat) → SecureDelete(recas.dat) → DeleteService(diagsysevt) → build "evtsys.exe" <path> command → CreateProcessA → ExitProcess → evtsys retry loop (up to 50x) → evtsys self-delete via evchk.bat → end state: nothing survives.]
 
 **The evtsys spawner : `FUN_00409300`, the cleverest piece of the chain:**
 
@@ -480,7 +480,6 @@ void SpawnEvtsysAndExit(HMODULE hSelf)
 
 The print-manipulation subsystem. Runs continuously, scanning three directories every second, doctoring any print-job (`.prt`) file it finds, then destroying the original.
 
-> [SCHEMA: Insert the "PRT Doctor-Then-Destroy Pipeline" diagram : dispatcher (3 parallel dir scans) → FindFirstFile 4-char filenames → parse content using _DO_NOT_USE_MM_ sentinel → write doctored PRT with nroff-macro templates → secure-delete original.]
 
 **The message-block extractor : `FUN_00401cd0`:**
 
@@ -753,7 +752,10 @@ Taken together, beyond the six formal attribution lines above, the technical det
 
 **Read together:** a developer working under time pressure in the final hours before an operation, working from a shared codebase, building a tool that assumed an operator would be present and interactive during execution, using transaction references that required insider knowledge to obtain. The technical artifacts are consistent with a small, disciplined team : one person writing the code, at least one other with access to the victim's SWIFT terminal. This is inference from the evidence above, presented as such, not as an independently proven fact.
 
-> [PHOTO: A simple visual : the six attribution lines as icons/checkmarks converging on a single "same author/team" conclusion box. Good LinkedIn-carousel material.]
+
+<p align="center">
+  <img width="543" height="518" alt="Capture d&#39;écran 2026-09-20 152809" src="https://github.com/user-attachments/assets/3d6de637-b8f8-40d3-a2f5-a10823b5d458" />
+</p>
 
 ---
 
@@ -1192,6 +1194,11 @@ SWIFT Alliance Access is proprietary, licensed exclusively to SWIFT member insti
 
 ### 8.2 SAAOWNER Schema
 
+<p align="center">
+  <img width="1919" height="717" alt="Capture d&#39;écran 2026-09-20 153516" src="https://github.com/user-attachments/assets/681924d5-19c8-419c-82b2-90e50d915f12" />
+</p>
+
+
 ```sql
 CREATE USER SAAOWNER IDENTIFIED BY "SentryLab_2026!";
 GRANT CONNECT, RESOURCE, DBA TO SAAOWNER;
@@ -1225,6 +1232,11 @@ CREATE AUDIT POLICY sentry_saaowner_dml
 
 AUDIT POLICY sentry_saaowner_dml;
 ```
+
+<p align="center">
+  <img width="1919" height="891" alt="Capture d&#39;écran 2026-09-20 162309" src="https://github.com/user-attachments/assets/efde5f91-7183-4d3b-a9e8-251996e1b915" />
+</p>
+
 
 > Note: `_TEST`/`_01` suffixes are lab placeholders : BAE's actual SQL uses an undocumented wildcard (`MESG_%s`), and the real suffix is unknown. `MESG_CREATE_DATE` is a synthetic lab-convenience column, not a documented field.
 
@@ -1456,8 +1468,29 @@ any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sq
 | search event_type_count >= 2
 ```
 
-> [PHOTO: Screenshots of the actual sigconverter.io output for at least 2-3 rules : you already have these.]
+<p align="center">
+  <img width="1439" height="835" alt="1k" src="https://github.com/user-attachments/assets/9e0bbd25-e9a8-4a06-914b-3eb3213a1619" />
+</p>
+```
 
+<p align="center">
+  <img width="1919" height="717" alt="2k" src="https://github.com/user-attachments/assets/3e8b5631-194b-4046-9824-3b17d49fb303" />
+</p>
+```
+
+<p align="center">
+  <img width="1449" height="840" alt="3k" src="https://github.com/user-attachments/assets/081e76bd-0772-415c-a561-cf5633615943" />
+</p>
+```
+
+<p align="center">
+  <img width="1446" height="853" alt="4s" src="https://github.com/user-attachments/assets/6713b56c-d1c0-42c5-abaf-eaf4c5077560" />
+</p>
+```
+
+<p align="center">
+  <img width="928" height="538" alt="Capture d&#39;écran 2026-09-20 012837" src="https://github.com/user-attachments/assets/a28ac51f-90a1-482f-b7d7-c337e143bd3c" />
+</p>
 ---
 
 ## 10. GRC Mapping
@@ -1479,7 +1512,6 @@ The detection content above is mapped against four frameworks relevant to a fina
 
 2. **Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques.** DNSSI's evidence-preservation requirement (INCID-GEST-PREUV) is the closest applicable control, but it's framed as a post-incident forensic obligation, not a preventive/detective control. Rule 6 fills a real, specific gap in current framework coverage.
 
-> [SCHEMA: A simple visual matrix : rows = rules, columns = the 4 frameworks, colored green/yellow/red for direct match / partial match / no coverage. This is a strong LinkedIn visual.]
 
 ---
 
