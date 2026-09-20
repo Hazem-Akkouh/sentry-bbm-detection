@@ -1,0 +1,32 @@
+title: SWIFT Database Client Invoked as SYSDBA via Piped Shell Command
+id: 7c3d2e1a-8f4b-4a6d-9e2c-1b5a7d9e3f6c
+status: experimental
+description: |
+    Detects sqlplus invoked with SYSDBA privileges, piped through cmd.exe
+    with a silent "echo exit" pattern and a redirected output file.
+    Matches the exact command structure documented in the 2016
+    Bangladesh Bank heist malware (evtdiag.exe).
+references:
+    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+author: Hazem Akkouh
+date: 2026/09/19
+tags:
+    - attack.execution
+    - attack.t1059.003
+    - attack.defense-evasion
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        Image|endswith: '\cmd.exe'
+    selection_child:
+        CommandLine|contains|all:
+            - 'echo exit'
+            - 'sqlplus'
+            - 'as sysdba'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate database administrators occasionally script silent sqlplus execution for scheduled maintenance.
+    - Backup or monitoring tooling that scripts SYSDBA connections for health checks.
+level: high

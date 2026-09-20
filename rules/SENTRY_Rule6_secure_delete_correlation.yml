@@ -1,0 +1,54 @@
+title: Secure-Delete Pattern - File Rename to Random String Followed by Deletion
+id: 8e2a4f1c-9d7b-4a3e-b6c8-2f5d9a1e4c7b
+status: experimental
+description: |
+    Detects a file being renamed to a random, same-length, lowercase-only
+    filename within a monitored directory, followed shortly by deletion.
+    Matches the anti-forensic secure-delete pattern documented in
+    evtsys.exe: zero-fill overwrite, rename, then delete.
+references:
+    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+    - https://www.justice.gov/opa/press-release/file/1092091/download
+author: Hazem Akkouh
+date: 2026/09/19
+tags:
+    - attack.defense-evasion
+    - attack.t1070.004
+logsource:
+    product: windows
+    category: file_event
+correlation:
+    type: temporal
+    rules:
+        - 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
+        - 4d6f8a1c-3e5b-7c9d-1f3a-5b7d9f1c3e5b
+    group-by:
+        - ComputerName
+    timespan: 30s
+level: high
+falsepositives:
+    - Legitimate secure-erase or file-shredding utilities produce an identical pattern.
+---
+title: Sentry - FileCreate Rename Inside Allians Directory
+id: 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
+status: experimental
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Allians\'
+    condition: selection
+level: informational
+---
+title: Sentry - FileDelete Inside Allians Directory
+id: 4d6f8a1c-3e5b-7c9d-1f3a-5b7d9f1c3e5b
+status: experimental
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Allians\'
+    condition: selection
+level: informational

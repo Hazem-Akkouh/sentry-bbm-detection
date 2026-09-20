@@ -1,0 +1,30 @@
+title: Legitimate Binary Backed Up and Replaced Under Original Filename
+id: 3c5e7a9f-1b4d-6e8f-2a4c-6e8a1c3f5b7d
+status: experimental
+description: |
+    Detects a file renamed to a .bak backup immediately before a new
+    file is created under the original filename. Matches the
+    binary-swap masquerade technique used in the 2016 Bangladesh Bank
+    heist (nroff.exe backed up to nroff.exe.bak, replaced with malicious
+    nroff.exe).
+references:
+    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+    - https://www.justice.gov/opa/press-release/file/1092091/download
+author: Hazem Akkouh
+date: 2026/09/19
+tags:
+    - attack.defense-evasion
+    - attack.t1036.003
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_backup:
+        TargetFilename|endswith: '.exe.bak'
+    selection_replacement:
+        TargetFilename|endswith: '.exe'
+    timeframe: 30s
+    condition: selection_backup and selection_replacement
+falsepositives:
+    - Legitimate software update mechanisms commonly back up the previous binary before replacing it.
+level: medium

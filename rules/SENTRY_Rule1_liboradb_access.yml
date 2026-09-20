@@ -1,0 +1,38 @@
+title: Suspicious Memory-Write Access to Process Hosting liboradb.dll
+id: 4f1a9e2c-6b3d-4e7a-9c1f-8a2d5e6b7c90
+status: experimental
+description: |
+    Detects a process opening a handle with memory-write-capable access
+    (PROCESS_VM_WRITE | PROCESS_VM_OPERATION, or broader access rights
+    such as PROCESS_ALL_ACCESS) to a process with liboradb.dll loaded.
+    liboradb.dll is a component of SWIFT Alliance Access's Oracle database
+    client library. This pattern matches the technique used by the 2016
+    Bangladesh Bank SWIFT heist malware (evtdiag.exe), which patched a
+    2-byte authentication-bypass instruction in this DLL in memory.
+references:
+    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+    - https://www.justice.gov/opa/press-release/file/1092091/download
+author: Hazem Akkouh
+date: 2026/09/19
+tags:
+    - attack.defense-evasion
+    - attack.t1055
+    - attack.t1562
+logsource:
+    category: process_access
+    product: windows
+detection:
+    selection_target:
+        TargetImage|contains: 'liboradb'
+    selection_access:
+        GrantedAccess:
+            - '0x1028'
+            - '0x0028'
+            - '0x1FFFFF'
+            - '0x1F1FFF'
+            - '0x1F0FFF'
+    condition: selection_target and selection_access
+falsepositives:
+    - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes; this rule requires tuning per environment before production use.
+    - Legitimate Oracle client patching, diagnostic, or crash-analysis tooling.
+level: high

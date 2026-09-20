@@ -1,0 +1,31 @@
+title: Process Self-Deletion via Dropped Batch File with Ping-Delay Loop
+id: 6f9a2c4e-8d1b-4f3a-9c6e-2b4d8f1a6c9e
+status: experimental
+description: |
+    Detects a cmd.exe-launched batch file using "PING 0.0.0.0" as a
+    portable sleep delay in a retry loop to delete a locked executable,
+    then deleting itself. Matches the evchk.bat self-deletion technique
+    used by evtsys.exe.
+references:
+    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+author: Hazem Akkouh
+date: 2026/09/19
+tags:
+    - attack.defense-evasion
+    - attack.t1070.004
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ping:
+        Image|endswith: '\PING.EXE'
+        CommandLine|contains: '0.0.0.0'
+        ParentImage|endswith: '\cmd.exe'
+    selection_batch_dropped:
+        ParentCommandLine|contains: '.bat'
+        ParentImage|endswith: '\cmd.exe'
+    condition: selection_ping and selection_batch_dropped
+falsepositives:
+    - Legitimate network-connectivity-testing scripts occasionally reuse the "ping as sleep" idiom.
+level: medium
