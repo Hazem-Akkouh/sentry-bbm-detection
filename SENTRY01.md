@@ -832,7 +832,7 @@ The following table tracks every significant finding from this analysis against 
 | 2 | Full 12-command operator CLI | BAE/Oosthoek mention only `-svc` and 4 printer commands (5 total) | **Novel** |
 | 3 | Three-binary handoff architecture (nroff_b → evtdiag → evtsys) | Not described as a coordinated pipeline anywhere | **Novel** |
 | 4 | Bidirectional liboradb patch (install AND uninstall) | Prior reports describe install-only | **Novel** |
-| 5 | Service-mode gating of the patch (CLI invocation alone does not patch) | Not documented | **Novel** |
+| 5 | Service-mode gating of the patch (None of the CLI-invoked commands reference the service-mode flag; each runs unconditionally on argument match.) | Not documented | **Novel** |
 | 6 | ST-0-E/ST-1/ST-2/ST-3/ST-100 internal state machine | Not enumerated anywhere | **Novel** |
 | 7 | Byte-level proof of kill switch constants (2016/2/6/6) | BAE mentions a kill switch date; no byte-level disassembly shown | **Extends prior work** |
 | 8 | C2 payload queue polled every second (immediate exfil, not just hourly heartbeat) | BAE describes "hourly beacon" only | **Novel** |
