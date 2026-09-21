@@ -80,7 +80,7 @@ The three executables form a coordinated attack surface, not three independent t
 
 ### 2.3 The Operational Timeline
 
-All three binaries were compiled in a tight **46-hour window**:
+All three binaries were compiled in a tight **22-hour window**:
 
 | Binary | Compile timestamp (UTC) | Hours before kill switch |
 |---|---|---|
