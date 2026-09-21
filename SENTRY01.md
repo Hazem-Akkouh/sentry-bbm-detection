@@ -32,11 +32,11 @@
 
 In February 2016, an attacker came within a few blocked transactions of stealing **$951 million** from the central bank of Bangladesh. They got away with **$81 million**. The malware toolkit that made the theft possible : patching a database library in memory, forging printed transaction confirmations, deleting its own tracks : has been picked apart by some of the best threat intelligence teams in the industry: BAE Systems, Symantec, Kaspersky, the U.S. Department of Justice, and, in 2021, the first (and only) peer-reviewed academic paper on the malware.
 
-**None of them shipped a single detection rule.**
+**No publicly identified SIGMA or vendor-neutral detection rule set for this specific toolkit was found in the sources reviewed for this project.**
 
-Eight years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 : a dead C2 IP, some file hashes : are useless against anyone who changes a byte. The behavior never got translated into something durable.
+ten years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 : a dead C2 IP, some file hashes : are useless against anyone who changes a byte. The behavior never got translated into something durable.
 
-This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables, 30+ novel findings not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
+This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables, 30+ novel findings findings not identified in the three prior public sources reviewed (BAE Systems, DOJ, Oosthoek & Doerr), several of which extend rather than originate new technical claims, see the findings table for a per-item breakdown not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
 
 
 ---
@@ -128,7 +128,7 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 | `%TEMP%\evchk.bat` | Dropped self-delete batch | None |
 | `nroff.exe.bak` | Backup of legitimate nroff | N/A |
 
-**The Windows service:** registered under key **`diagsysevt`**, but at runtime the malware passes **`evtsys.exe`** as the `lpServiceName` argument to `StartServiceCtrlDispatcherA` : the exact name of a legitimate Windows binary in System32 (the real Windows Event System service is served by `evtsvc.exe` : close enough to fool a casual glance in Process Explorer).
+**The Windows service:** registered under key **`diagsysevt`**, but at runtime the malware passes **`evtsys.exe`** as the `lpServiceName` argument to `StartServiceCtrlDispatcherA`.
 
 **The C2 server:** one hardcoded IP, `196.202.103.174`, port 80, plaintext HTTP. Long dead : do not build detection around this literal value; see Section 7 for the behavioral alternative.
 
@@ -430,7 +430,6 @@ DWORD SendC2Beacon(const char *payload)
 
 **The beacon thread:**
 
-> [SCHEMA: Insert the "C2 Beacon Thread" flowchart from the RE report : sleep 30s → poll payload queue → send immediately if queued, else sleep 1s → every 3600s check login state → send ---O/---C/---N marker → loop until shutdown.]
 
 **Novel finding : two details beyond BAE's "hourly beacon" description:**
 
@@ -728,7 +727,7 @@ All three binaries show: a Visual Studio 6.0 rich header; `MSVCP60.dll` dependen
 
 ### 4.5 Adjacent Compile Timestamps
 
-Already covered in Section 2.3 : all three within a 46-hour window, evtdiag compiled less than 18 hours before the scheduled kill switch.
+Already covered in Section 2.3 : all three within a , evtdiag compiled less than 18 hours before the scheduled kill switch.
 
 ### 4.6 Same Filename Masquerade Pattern
 
@@ -746,7 +745,7 @@ Taken together, beyond the six formal attribution lines above, the technical det
 
 **The compile timestamps** tell a story numbers alone don't capture. `evtsys.exe` compiled February 4 at 13:45 UTC; `nroff_b.exe` followed February 5 at 08:55; `evtdiag.exe` : the main binary : was compiled last, on February 5 at 11:46, less than 18 hours before the kill switch was designed to fire. The developer was still compiling the main binary the day before the operation ended. This does not read as a team that prepared months in advance and tested carefully : it suggests a rushed final build, possibly incorporating last-minute changes based on reconnaissance of the victim environment. The kill switch date is hardcoded as literal bytes in the binary (year `0x7E0`, month `0x02`, day `0x06`). Someone sat down and typed that date. They knew exactly how long the operation needed to run.
 
-**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" : in the path template, the directory name, the config file location : appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written : meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled.
+**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" : in the path template, the directory name, the config file location : appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written : meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled. A simpler alternative explanation for the 'Allians' misspelling, a deliberate lookalike name chosen for the same reason evtsys.exe/nroff_b.exe mimic legitimate names, or a typo carried through the codebase without correction — cannot be ruled out and should be weighed alongside the insider-knowledge interpretation above
 
 **The operator CLI is the most psychologically revealing artifact.** Twelve commands. Pause, resume, on, off, queue for the printer. Install and uninstall for the liboradb patch : both directions. A manual C2 beacon trigger. A file-staging command and a separate swap command. This is not a fire-and-forget tool. Someone planned to be present during the operation, issuing commands, monitoring the printer, controlling the patch state. The bidirectionality of the patch : the ability to uninstall as cleanly as install : suggests an operator who expected to need to leave the system in a clean state on demand, not only at the kill switch. They thought about getting caught mid-operation and planned an exit.
 
@@ -857,7 +856,8 @@ The following table tracks every significant finding from this analysis against 
 | 29 | Sysmon 15.21 crashes on `name` attribute in `FileDelete` rule elements (tooling finding, not malware finding) | Historically reported for older Sysmon versions/different scenario; this is a distinct/regressed instance | **Novel (tooling, not malware)** |
 | 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident** | **Novel : the core contribution** |
 
-> [PHOTO: This table works well as a scrollable LinkedIn carousel : one finding per slide, "Novel" ones highlighted in a different color from "Extends prior work" and the two "Correction" entries.]
+
+NOTE : Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XREF and disassembly evidence in Section 3.4; the original authors have not been contacted for confirmation prior to publication, and this correction should be treated as a reproducible technical observation open to independent verification, not a settled fact
 
 ---
 
@@ -868,45 +868,72 @@ Eight rules, derived directly from the behavioral taxonomy in Section 3, validat
 ### Rule 1 : liboradb.dll Memory-Write Access
 
 ```yaml
-title: Suspicious Memory-Write Access to Process Hosting liboradb.dll
+title: Memory-Write Access to a Process With liboradb.dll Loaded
 id: 4f1a9e2c-6b3d-4e7a-9c1f-8a2d5e6b7c90
 status: experimental
 description: |
-    Detects a process opening a handle with memory-write-capable access
-    (PROCESS_VM_WRITE | PROCESS_VM_OPERATION, or broader access rights
-    such as PROCESS_ALL_ACCESS) to a process with liboradb.dll loaded.
-    liboradb.dll is a component of SWIFT Alliance Access's Oracle database
-    client library. This pattern matches the technique used by the 2016
-    Bangladesh Bank SWIFT heist malware (evtdiag.exe), which patched a
-    2-byte authentication-bypass instruction in this DLL in memory.
+    Correlates an ImageLoad event confirming liboradb.dll was loaded into
+    a process with a subsequent ProcessAccess event granting memory-write
+    rights to that same process (matched by ProcessGuid). A single
+    ProcessAccess event cannot confirm the target has this DLL loaded;
+    Sysmon's TargetImage field on Event ID 10 is the process executable,
+    not a loaded module. This corrects an earlier single-event version of
+    this rule that could not match real telemetry (confirmed: the
+    original version never matched the ProcessGuid/TargetImage pairing
+    produced in testing).
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-    - https://www.justice.gov/opa/press-release/file/1092091/download
 author: Hazem Akkouh
-date: 2026/09/19
+date: 2026/09/21
 tags:
     - attack.defense-evasion
     - attack.t1055
     - attack.t1562
 logsource:
-    category: process_access
     product: windows
+    category: process_access
+correlation:
+    type: temporal
+    rules:
+        - a1b2c3d4-1111-4a1a-9a1a-111111111111
+        - a1b2c3d4-2222-4a2a-9a2a-222222222222
+    group-by:
+        - TargetProcessGuid
+    timespan: 60s
+level: high
+falsepositives:
+    - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes; tune per environment.
+---
+title: Sentry - ImageLoad of liboradb.dll
+id: a1b2c3d4-1111-4a1a-9a1a-111111111111
+status: experimental
+logsource:
+    product: windows
+    category: image_load
 detection:
-    selection_target:
-        TargetImage|contains: 'liboradb'
-    selection_access:
+    selection:
+        ImageLoaded|endswith: '\liboradb.dll'
+    condition: selection
+level: informational
+---
+title: Sentry - ProcessAccess With Memory-Write Rights
+id: a1b2c3d4-2222-4a2a-9a2a-222222222222
+status: experimental
+logsource:
+    product: windows
+    category: process_access
+detection:
+    selection:
         GrantedAccess:
             - '0x1028'
             - '0x0028'
             - '0x1FFFFF'
             - '0x1F1FFF'
             - '0x1F0FFF'
-    condition: selection_target and selection_access
-falsepositives:
-    - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes.
-    - Legitimate Oracle client patching or diagnostic tooling.
-level: high
+    condition: selection
+level: informational
 ```
+
 
 ### Rule 2 : SQL Client Invoked as SYSDBA via Piped Shell
 
@@ -1020,10 +1047,17 @@ title: SWIFT Confirmation Message Content in Alliance Access Message Files
 id: 5b8c1e3a-7d4f-4a9c-b2e6-1f8a3c9d7e2b
 status: experimental
 description: |
-    Detects creation/modification of .prc/.fal message files under
-    Alliance Access message-store directories (mcm\, mcp\, mcf\)
-    containing FIN 900 confirmation strings or transaction-monitoring
-    field tags.
+    Detects file creation activity in SWIFT Alliance Access message-store
+    directories (mcm\, mcp\, mcf\) with .prc/.fal extensions. This rule
+    detects LOCATION and FILE TYPE only — Sysmon's FileCreate event does
+    not expose file content, so this rule cannot itself confirm the
+    presence of specific message strings (e.g. "FIN 900 Confirmation of
+    Debit"). Content-level inspection requires a separate mechanism
+    (e.g. a file-content-aware EDR feature, or scheduled content
+    scanning) layered on top of this rule. As written, this rule will
+    match routine, expected file activity in these directories under
+    normal Alliance Access operation and should be treated as a
+    low-confidence contextual signal, not a standalone alert.
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
 author: Hazem Akkouh
@@ -1151,33 +1185,60 @@ title: Legitimate Binary Backed Up and Replaced Under Original Filename
 id: 3c5e7a9f-1b4d-6e8f-2a4c-6e8a1c3f5b7d
 status: experimental
 description: |
-    Detects a file renamed to a .bak backup immediately before a new file
-    is created under the original filename. Matches the binary-swap
-    masquerade technique used in the 2016 Bangladesh Bank heist
-    (nroff.exe backed up to nroff.exe.bak, replaced with a malicious
-    nroff.exe).
+    Correlates a .exe.bak creation event with a subsequent .exe creation
+    event in the same directory shortly after. A single FileCreate event
+    cannot satisfy both conditions simultaneously; this corrects an
+    earlier, logically impossible single-event version of this rule
+    that required one event's TargetFilename to end with both '.exe.bak'
+    and '.exe'.
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
     - https://www.justice.gov/opa/press-release/file/1092091/download
 author: Hazem Akkouh
-date: 2026/09/19
+date: 2026/09/21
 tags:
     - attack.defense-evasion
     - attack.t1036.003
 logsource:
-    category: file_event
     product: windows
-detection:
-    selection_backup:
-        TargetFilename|endswith: '.exe.bak'
-    selection_replacement:
-        TargetFilename|endswith: '.exe'
-    timeframe: 30s
-    condition: selection_backup and selection_replacement
+    category: file_event
+correlation:
+    type: temporal
+    rules:
+        - b2c3d4e5-3333-4b3b-9b3b-333333333333
+        - b2c3d4e5-4444-4b4b-9b4b-444444444444
+    group-by:
+        - ComputerName
+    timespan: 30s
+level: medium
 falsepositives:
     - Legitimate software update mechanisms commonly back up the previous binary before replacing it.
-level: medium
+---
+title: Sentry - Backup File Created (.exe.bak)
+id: b2c3d4e5-3333-4b3b-9b3b-333333333333
+status: experimental
+logsource:
+    product: windows
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith: '.exe.bak'
+    condition: selection
+level: informational
+---
+title: Sentry - Executable Created After Backup
+id: b2c3d4e5-4444-4b4b-9b4b-444444444444
+status: experimental
+logsource:
+    product: windows
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith: '.exe'
+    condition: selection
+level: informational
 ```
+
 
 ---
 
@@ -1424,7 +1485,6 @@ Rename-Item -Path $original -NewName "nroff.exe.bak"
 "malicious replacement placeholder" | Out-File -FilePath $original -Encoding ASCII
 ```
 
-> [PHOTO: A screenshot montage : the VM desktop, the Oracle SQL*Plus session showing a successful connection, and Event Viewer filtered to Sysmon Operational log. Good for showing "this is real, not just theory."]
 
 ---
 
@@ -1455,8 +1515,8 @@ All 8 rules were converted via **pySigma / sigconverter.io** (a free, open-sourc
 | **Microsoft Sentinel (Kusto/KQL)** | Rules 1-5, 7-8 converted successfully. **Rule 6 failed with an explicit backend error: "Backend does not support correlation rules."** This is a genuine, documented limitation of current SIGMA tooling maturity, not a flaw in the rule's logic. |
 | **SentinelOne EDR** | All 8 rules converted successfully (note: SentinelOne the EDR product is distinct from Microsoft Sentinel the SIEM : a naming collision worth being explicit about, since sigconverter.io lists the EDR target as `sentinel_one`) |
 
-**Example : Rule 2 converted to Splunk SPL:**
-```spl
+**Example : Rule 2 converted to EQL (Elastic):**
+```eql
 any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sqlplus*" and CommandLine:"*as sysdba*")
 ```
 
@@ -1470,30 +1530,12 @@ any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sq
 | search event_type_count >= 2
 ```
 
+
 <p align="center">
-  <img width="1439" height="835" alt="1k" src="https://github.com/user-attachments/assets/9e0bbd25-e9a8-4a06-914b-3eb3213a1619" />
+  <img width="1439" height="835" alt="image" src="https://github.com/user-attachments/assets/22628b59-a8e3-4029-b321-9374bf70e3d9" />
 </p>
 ```
 
-<p align="center">
-  <img width="1439" height="835" alt="2k" src="https://github.com/user-attachments/assets/3e8b5631-194b-4046-9824-3b17d49fb303" />
-</p>
-```
-
-<p align="center">
-  <img width="1439" height="835" alt="3k" src="https://github.com/user-attachments/assets/081e76bd-0772-415c-a561-cf5633615943" />
-</p>
-```
-
-<p align="center">
-  <img width="1439" height="835" alt="4s" src="https://github.com/user-attachments/assets/6713b56c-d1c0-42c5-abaf-eaf4c5077560" />
-</p>
-```
-
-<p align="center">
-  <img width="1439" height="835" alt="Capture d&#39;écran 2026-09-20 012837" src="https://github.com/user-attachments/assets/a28ac51f-90a1-482f-b7d7-c337e143bd3c" />
-</p>
----
 
 ## 10. GRC Mapping
 
@@ -1526,7 +1568,7 @@ Stated plainly, not buried:
 - **Rule 1's GrantedAccess exact-match logic is brittle** : a known limitation of Sysmon ProcessAccess-based detection generally, not unique to this rule.
 - **SIGMA correlation-rule backend support is immature** : Rule 6's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
 - **The `mcf\` directory's full function is not completely characterized** in this analysis : flagged as an open question.
-- **This report has not undergone formal peer review** at the time of publication; a separate, peer-review-track academic version of this work exists as a companion paper (Section 0).
+- **This report has not undergone formal peer review** at the time of publication; a separate, peer-review-track academic version of this work exists as a companion paper.
 
 ---
 
