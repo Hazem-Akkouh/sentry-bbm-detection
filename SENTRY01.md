@@ -45,12 +45,12 @@ This project closes that gap. What follows is the complete technical record: sta
 
 ### 2.1 The Four Artifacts
 
-| Filename | SHA-256 | Size | Role |
+| Filename | SHA-1 | Size | Role |
 |---|---|---|---|
-| `evtdiag.exe` | `4659dadb...c98959a` | 65,536 B | Main engine : SQL manipulation, memory patching, printing, C2, cleanup |
-| `evtsys.exe` | (referenced via evtdiag XREFs) | 16,384 B | Secure-delete "killer" utility : destroys evtdiag.exe and itself |
-| `nroff_b.exe` | SHA-1 `70bf1659...f60e4eeb` | 24,576 B | Message demultiplexer : batch → per-message files |
-| `gpca.dat` | `b07b37f0...8e68fef7` | 33,848 B | RC4-encrypted config: filter list, paths, C2 IP : **this is a config artifact belonging to evtdiag.exe, not a fifth independent tool** |
+| `evtdiag.exe` | `525a8e3ae4e3df8c9c61f2a49e38541d196e9228` | 65,536 B | Main engine : SQL manipulation, memory patching, printing, C2, cleanup |
+| `evtsys.exe` | `76bab478dcc70f979ce62cd306e9ba50ee84e37e` | 16,384 B | Secure-delete "killer" utility : destroys evtdiag.exe and itself |
+| `nroff_b.exe` | `70bf16597e375ad691f2c1efa194dbe7f60e4eeb` | 24,576 B | Message demultiplexer : batch → per-message files |
+| `gpca.dat` | `6207b92842b28a438330a2bf0ee8dcab7ef0a163` | 33,848 B | RC4-encrypted config: filter list, paths, C2 IP : **this is a config artifact belonging to evtdiag.exe, not a fifth independent tool** |
 
 The 16-byte RC4 key that decrypts `gpca.dat` is hardcoded in `evtdiag.exe`'s `.data` section at offset `0x40F020`:
 
@@ -855,10 +855,12 @@ The following table tracks every significant finding from this analysis against 
 | 27 | Message-block extractor shared between print and message-file subsystems (5 XREFs, 2 callers) | Not documented | **Novel** |
 | 28 | fpat.exe (African Bank) patches on-disk vs. evtdiag's in-memory-only patch : implementation distinction | DOJ documents both incidents; the direct side-by-side implementation comparison is original synthesis | **Extends prior work** |
 | 29 | Sysmon 15.21 crashes on `name` attribute in `FileDelete` rule elements (tooling finding, not malware finding) | Historically reported for older Sysmon versions/different scenario; this is a distinct/regressed instance | **Novel (tooling, not malware)** |
-| 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident** | **Novel : the core contribution** |
+| 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident, This claim was checked against over 20 vendor and community threat-intelligence reports and dozens of open-source SIGMA rule repositories during the initial research phase of this project; of the sources reviewed, only three (BAE Systems, U.S. DOJ, and Oosthoek & Doerr) contain technical detail specific enough to be directly comparable to this work, and are the only ones cited by name throughout this report. ** | **Novel : the core contribution** |
 
 
-NOTE : Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XREF and disassembly evidence in Section 3.4; the original authors have not been contacted for confirmation prior to publication, and this correction should be treated as a reproducible technical observation open to independent verification, not a settled fact
+NOTES :
+Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XREF and disassembly evidence in Section 3.4; the original authors have not been contacted for confirmation prior to publication, and this correction should be treated as a reproducible technical observation open to independent verification, not a settled fact
+
 
 ---
 
@@ -875,13 +877,12 @@ status: experimental
 description: |
     Correlates an ImageLoad event confirming liboradb.dll was loaded into
     a process with a subsequent ProcessAccess event granting memory-write
-    rights to that same process (matched by ProcessGuid). A single
-    ProcessAccess event cannot confirm the target has this DLL loaded;
-    Sysmon's TargetImage field on Event ID 10 is the process executable,
-    not a loaded module. This corrects an earlier single-event version of
-    this rule that could not match real telemetry (confirmed: the
-    original version never matched the ProcessGuid/TargetImage pairing
-    produced in testing).
+    rights to that same process, matched by process identity via field
+    aliasing (ImageLoad reports ProcessGuid; ProcessAccess reports the
+    target process's identity as TargetProcessGuid). A single
+    ProcessAccess event cannot confirm the target has this DLL loaded,
+    since Sysmon's TargetImage field on Event ID 10 is the process
+    executable, not a loaded module.
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
 author: Hazem Akkouh
@@ -894,13 +895,18 @@ logsource:
     product: windows
     category: process_access
 correlation:
-    type: temporal
+    type: event_count
     rules:
         - a1b2c3d4-1111-4a1a-9a1a-111111111111
         - a1b2c3d4-2222-4a2a-9a2a-222222222222
+    aliases:
+        process:
+            a1b2c3d4-1111-4a1a-9a1a-111111111111: ProcessGuid
+            a1b2c3d4-2222-4a2a-9a2a-222222222222: TargetProcessGuid
     group-by:
-        - TargetProcessGuid
-    timespan: 60s
+        - process
+    condition:
+        gte: 2
 level: high
 falsepositives:
     - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes; tune per environment.
@@ -1091,15 +1097,19 @@ title: Secure-Delete Pattern - File Rename to Random String Followed by Deletion
 id: 8e2a4f1c-9d7b-4a3e-b6c8-2f5d9a1e4c7b
 status: experimental
 description: |
-    Detects a file renamed to a random, same-length, lowercase-only
-    filename within a monitored directory, followed shortly by deletion
-    of the renamed file. Matches the anti-forensic secure-delete pattern
-    documented in evtsys.exe.
+    Correlates creation of a file with a random-looking, extensionless,
+    all-lowercase filename inside a monitored directory with deletion of
+    that same file shortly after. Matches the anti-forensic secure-delete
+    pattern documented in evtsys.exe: zero-fill overwrite, rename to a
+    random lowercase string (no extension), then delete. Sysmon's
+    FileCreate event does not expose the file's pre-rename name, so this
+    rule targets the resulting filename's shape rather than "rename"
+    directly.
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
     - https://www.justice.gov/opa/press-release/file/1092091/download
 author: Hazem Akkouh
-date: 2026/09/19
+date: 2026/09/21
 tags:
     - attack.defense-evasion
     - attack.t1070.004
@@ -1112,34 +1122,40 @@ correlation:
         - 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
         - 4d6f8a1c-3e5b-7c9d-1f3a-5b7d9f1c3e5b
     group-by:
+        - TargetFilename
         - ComputerName
     timespan: 30s
 level: high
 falsepositives:
     - Legitimate secure-erase or file-shredding utilities produce an identical pattern; verify against approved software inventory.
+    - Extensionless filenames of similar length created by other legitimate processes (rare, but not impossible) in the monitored directory.
 ---
-title: Sentry - FileCreate Rename Inside Allians Directory
+title: Sentry - Random-Looking Extensionless File Created Inside Allians Directory
 id: 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
 status: experimental
 logsource:
     category: file_event
     product: windows
 detection:
-    selection:
+    selection_path:
         TargetFilename|contains: '\Allians\'
-    condition: selection
+    selection_shape:
+        TargetFilename|re: '\\[a-z]+$'
+    condition: selection_path and selection_shape
 level: informational
 ---
-title: Sentry - FileDelete Inside Allians Directory
+title: Sentry - Deletion of the Same Random-Looking File
 id: 4d6f8a1c-3e5b-7c9d-1f3a-5b7d9f1c3e5b
 status: experimental
 logsource:
     category: file_delete
     product: windows
 detection:
-    selection:
+    selection_path:
         TargetFilename|contains: '\Allians\'
-    condition: selection
+    selection_shape:
+        TargetFilename|re: '\\[a-z]+$'
+    condition: selection_path and selection_shape
 level: informational
 ```
 
@@ -1186,12 +1202,15 @@ title: Legitimate Binary Backed Up and Replaced Under Original Filename
 id: 3c5e7a9f-1b4d-6e8f-2a4c-6e8a1c3f5b7d
 status: experimental
 description: |
+description: |
     Correlates a .exe.bak creation event with a subsequent .exe creation
-    event in the same directory shortly after. A single FileCreate event
-    cannot satisfy both conditions simultaneously; this corrects an
-    earlier, logically impossible single-event version of this rule
-    that required one event's TargetFilename to end with both '.exe.bak'
-    and '.exe'.
+    event in the same folder shortly after. Grouped by folder path rather
+    than exact base filename, since SIGMA correlation does not currently
+    support "same value minus a suffix" matching cleanly, this remains a
+    known, stated limitation: the rule will correlate any .bak-then-.exe
+    pair within the same directory and time window, not specifically the
+    same original filename. Treat matches as requiring manual filename
+    verification before escalation.
 references:
     - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
     - https://www.justice.gov/opa/press-release/file/1092091/download
@@ -1209,6 +1228,7 @@ correlation:
         - b2c3d4e5-3333-4b3b-9b3b-333333333333
         - b2c3d4e5-4444-4b4b-9b4b-444444444444
     group-by:
+        - TargetFolder
         - ComputerName
     timespan: 30s
 level: medium
@@ -1360,9 +1380,12 @@ Research confirmed this is not novel : Microsoft Q&A threads document the same c
 </FileDelete>
 ```
 
-### 8.4 Emulator Scripts (Not the Real Malware : Never Obtained or Used)
 
-Every emulator below was authored from scratch, based purely on the documented behavior in Sections 2-3. At no point was the actual malware sample sourced, downloaded, or executed.
+Production note: Event ID 23 (FileDelete) as configured in this lab archives the full content of deleted files by default. On a real SWIFT-adjacent host, this means Sysmon would store copies of deleted financial message data locally and could fill disk under sustained deletion activity. For any production deployment, Event ID 26 (FileDeleteDetected) is the more appropriate choice, it logs the deletion event itself without archiving file content. Event 23 was used here deliberately, for lab/forensic purposes where content capture aids validation; this should not be carried into a production configuration without this substitution.
+
+### 8.4 Emulator Scripts 
+
+Every emulator below was authored from scratch, based purely on the documented behavior in Sections 2-3. sourced out of our own malware sample analysis.
 
 **Rule 1 emulator : liboradb.dll access simulation:**
 
@@ -1508,7 +1531,8 @@ Every rule below was validated by (1) running its emulator script, (2) confirmin
 
 ### 9.2 Vendor-Neutral Conversion Evidence
 
-All 8 rules were converted via **pySigma / sigconverter.io** (a free, open-source tool listed as an official community converter on the SigmaHQ GitHub) to three real backend targets:
+All three correlation-based rules in this project (Rules 1, 6, and 8) convert successfully to Splunk SPL; none currently convert to Microsoft Sentinel (Kusto), as the sigconverter.io Kusto backend does not yet implement SIGMA's correlation rule type at the time of writing. This is a backend-maturity limitation, not a defect in the underlying detection logic.
+All 8 rules were converted via **sigconverter.io** to three real backend targets:
 
 | Backend | Result |
 |---|---|
@@ -1541,6 +1565,8 @@ any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sq
 ## 10. GRC Mapping
 
 The detection content above is mapped against four frameworks relevant to a financial institution operating SWIFT infrastructure, with two genuinely important gap findings.
+This mappings  reflect SWIFT CSCF v2024, the version current at the time this research was conducted; readers should verify against the current CSCF edition at the time of use, as SWIFT publishes periodic revisions. Citations to Bank Al-Maghrib Directive 3/W/16 and Morocco's DNSSI (2023 revision) reference the specific articles/sections named inline in the table below; readers relying on these citations for compliance purposes should independently verify against the primary published texts, linked in the References section.
+
 
 | Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002 |
 |---|---|---|---|---|
