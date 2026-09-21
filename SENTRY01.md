@@ -84,11 +84,13 @@ All three binaries were compiled in a tight **22-hour window**:
 
 | Binary | Compile timestamp (UTC) | Hours before kill switch |
 |---|---|---|
-| evtsys.exe | Thu Feb 04 2016, 13:45:39 | ~40.2 hours |
-| nroff_b.exe | Fri Feb 05 2016, 08:55:19 | ~21 hours |
-| evtdiag.exe | Fri Feb 05 2016, 11:46:20 | ~18.2 hours |
+| evtsys.exe | Thu Feb 04 2016, 13:45:39 | ~34.2 hours |
+| nroff_b.exe | Fri Feb 05 2016, 08:55:19 | ~15.1 hours |
+| evtdiag.exe | Fri Feb 05 2016, 11:46:20 | 	~12.2 hours |
 
-The kill switch fires at **2016-02-06 06:00 local time**. The main operational binary was compiled less than 18 hours before the operation was designed to end. This is not the signature of a team that tested carefully over months : it reads as a rushed final build, plausibly incorporating last-minute reconnaissance about the victim environment.
+The kill switch fires at **2016-02-06 06:00 local time**. The main operational binary was compiled ~12.2 hours before the kill switch, before the operation was designed to end. This is not the signature of a team that tested carefully over months : it reads as a rushed final build, plausibly incorporating last-minute reconnaissance about the victim environment.
+
+this assumes the kill switch's local-time check ran against Bangladesh Standard Time (UTC+6) : i.e., the victim machine's OS clock was set to Dhaka time, which is the reasonable default for a server physically located at Bangladesh Bank. If that assumption is wrong (e.g., the server's OS clock was set to UTC or another zone), these hour figures shift accordingly.
 
 <p align="center">
   <img width="779" height="672" alt="image" src="https://github.com/user-attachments/assets/11eb55b6-846f-41c2-b728-84019cc4e87c" />
@@ -240,7 +242,8 @@ DWORD ServiceMain(void)
 }
 ```
 
-**Novel observation : service-mode gating:** the liboradb.dll patch install is gated on a flag that is only set when the binary is invoked with `-svc` AND the SCM successfully registers the service handler. If you run `evtdiag.exe` directly from a shell without `-svc`, **the patch is skipped**. This means the CLI commands (`-i`, `-u`, `-t`, `-p`, `-g`, `-r`, `-s`) do not automatically patch the DLL : only the fully-installed service path does. This gating is not documented in prior public writeups.
+**Novel observation : service-mode gating:**  DAT_004195c9 is set to 1 unconditionally inside the -svc branch, immediately before StartServiceCtrlDispatcherA is called — it is a flag written to signal service-mode state to ServiceMain, not a gate on the patch function itself. Verified directly against the CLI dispatcher's decompiled source (FUN_00409db0): the -i command invokes the patch function (FUN_004023b0(1, ...)) unconditionally and immediately, with no check of DAT_004195c9 or any other precondition anywhere in that branch. The -u command behaves identically for uninstall (FUN_004023b0(0, ...)). These are two independent invocation paths to the same patch routine: -i/-u as an explicit, immediate manual override available regardless of service state, and the -svc path as a separate, automatic route gated inside ServiceMain's own logic on the flag set at service startup. An earlier version of this report incorrectly described the CLI commands as gated by the same flag; this has been corrected after re-verification against the actual decompiled dispatcher function.
+Verified directly against the full decompiled CLI dispatcher (FUN_00409db0): none of the CLI-invoked commands (-i, -u, -t, -p, -g, -r, -s) reference DAT_004195c9 at any point, each executes its corresponding function unconditionally upon a successful argument match. The flag is written once, unconditionally, inside the -svc branch (immediately before StartServiceCtrlDispatcherA), and is read only inside ServiceMain's own internal logic to decide whether to automatically invoke the patch function after the login-detection wait completes. CLI invocation and the -svc/ServiceMain automatic path are entirely independent code routes to their respective functions; there is no shared gating condition between them.
 
 **Novel observation : the ST-N state machine:** four log strings form an internal lifecycle tracker written to `recas.dat`:
 
@@ -307,10 +310,10 @@ LAB_00409271:
 0040928a 66 8b 44 24 06    MOV   AX, word ptr [ESP+6]        ; wDay
 0040928f 66 3d 06 00       CMP   AX, 6                       ; the 6th
 ...
-004022a3 66 83 7c 24 08 06 CMP   word ptr [ESP+8], 6         ; wHour >= 6
-004022a9 0f 93 c0          SETNC AL
-004022ac 83 c4 10          ADD   ESP, 0x10
-004022af c3                RET
+004092a3 66 83 7c 24 08 06 CMP   word ptr [ESP+8], 6         ; wHour >= 6
+004092a9 0f 93 c0          SETNC AL
+004092ac 83 c4 10          ADD   ESP, 0x10
+004092af c3                RET
 ```
 
 The four constants (**2016, 2, 6, 6**) are visible directly in the disassembly as immediate operands to CMP instructions. This is not interpretation : it is byte-level fact. Any reviewer with the same binary can verify it in under a minute. This is the strongest, most defensible single finding in the entire malware family.
