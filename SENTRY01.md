@@ -34,9 +34,9 @@ In February 2016, an attacker came within a few blocked transactions of stealing
 
 **No publicly identified SIGMA or vendor-neutral detection rule set for this specific toolkit was found in the sources reviewed for this project.**
 
-ten years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 : a dead C2 IP, some file hashes : are useless against anyone who changes a byte. The behavior never got translated into something durable.
+Ten years later, if you're a SOC analyst at a bank running SWIFT Alliance Access today, there is no publicly available SIGMA rule, no vendor-neutral detection content, nothing you can drop into your SIEM that says "this specific, well-documented attack pattern is happening right now." The IOCs from 2016 : a dead C2 IP, some file hashes : are useless against anyone who changes a byte. The behavior never got translated into something durable.
 
-This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables. Most of the findings are not identified in the three prior public sources reviewed (BAE Systems, DOJ, Oosthoek & Doerr), several of which extend rather than originate new technical claims, see the findings table for a per-item breakdown not in any prior public report, 8 working SIGMA rules validated against a real (simulated) environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
+This project closes that gap. What follows is the complete technical record: static analysis, full Ghidra reverse engineering (function by function, byte by byte), attribution reasoning, IOC tables. Most of the findings are not identified in the three prior public sources reviewed (BAE Systems, DOJ, Oosthoek & Doerr), several of which extend rather than originate new technical claims, see the findings table for a per-item breakdown not in any prior public report, 13 SIGMA and 1 YARA rules validated against a simulated environment, and a mapping of everything back to the regulatory frameworks : SWIFT CSCF, Morocco's DNSSI, Bank Al-Maghrib's pentesting directive, ISO 27002 : that a real institution would actually be held to.
 
 
 ---
@@ -381,7 +381,7 @@ undefined4 FUN_00402580(HANDLE hProc, DWORD moduleBase, int direction)
    c. If `StrStrIA(moduleName, "liboradb.dll")` matches: call the patcher, increment found/patched counters
 4. Print `"PI (found, patched)"` or `"PU (found, unpatched)"`
 
->  **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch : `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 1 (Section 7) detects.
+>  **Detection surface, worth flagging explicitly:** the use of `PROCESS_ALL_ACCESS (0x1F0FFF)` is heavier than needed for a memory patch : `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION` would suffice. Legitimate patching tools normally request the minimum required rights. This over-broad access request is exactly what SENTRY Rule 3 (Section 7) detects.
 
 ### 3.4 The C2 Beacon : `FUN_00408f40` and `LAB_00409130`
 
