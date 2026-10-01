@@ -729,7 +729,7 @@ All three binaries show: a Visual Studio 6.0 rich header; `MSVCP60.dll` dependen
 
 ### 4.5 Adjacent Compile Timestamps
 
-Already covered in Section 2.3 : all three within a , evtdiag compiled less than 12.2 hours before the scheduled kill switch.
+Already covered in Section 2.3 : all three within a 22-hour window. evtdiag compiled less than 12.2 hours before the scheduled kill switch.
 
 ### 4.6 Same Filename Masquerade Pattern
 
@@ -864,38 +864,82 @@ Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XRE
 
 ---
 
-## 7. SIGMA Rules
+## 7. Generated Rules
+# Bangladesh Bank Heist Toolkit: SIGMA and YARA Detection Rules
 
-Eight rules, derived directly from the behavioral taxonomy in Section 3, validated end-to-end against the environment in Section 8. Rules 1 and 6 use SIGMA's native `correlation` construct for multi-event anti-forensic sequences that no single log line can represent.
+> *Every rule below triggers on a direct, observable event (a process launching, a file being created or deleted, a database action being audited, a service being registered) : nothing here depends on heuristics, scoring, or machine learning. That's deliberate: simple triggers are easier to audit, easier to port across SIEM/EDR backends, and easier to trust. That said, none of these rules have been validated against a production environment. They were tested in a single-variable lab simulation; in a real bank or financial institution running SWIFT, antivirus exclusions, a different Sysmon configuration, unrelated software with similar-looking behavior, or simply a different OS/Oracle patch level could all change how a rule behaves : any one of these is a "third element" capable of breaking a rule that worked perfectly in a controlled test. Treat these as a verified starting template, not a drop-in production deployment: the logic is sound and the triggers are real, but every rule needs re-testing against your own environment, your own baseline traffic, and your own false-positive tolerance before it goes anywhere near a production alert queue.*
 
-### Rule 1 : liboradb.dll Memory-Write Access
+---
+
+## Rule 1 : mcf\ Directory Creation
+
+```yaml
+title: Creation of Non-Standard 'mcf' Directory in SWIFT Alliance Directory Tree
+id: 9f2a1c4e-7b3d-4e8a-9c1f-2a5e8b4d7c1a
+status: experimental
+description: |
+    Detects creation of an "mcf" subdirectory under an Alliance/Allians
+    directory tree. This directory does not exist in a standard SWIFT
+    Alliance Access installation; it is created at runtime by the
+    Bangladesh Bank heist toolkit (evtdiag.exe) as a staging area for
+    doctored PRT files. Presence alone is dispositive.
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains|all:
+            - '\mcf'
+            - '\Incoming'
+    condition: selection
+level: critical
+falsepositives:
+    - None known against a genuine clean Alliance Access baseline; verify against your specific vendor/version before deployment.
+tags: [attack.persistence, attack.t1074.001]
+```
+
+## Rule 2 : Service Registration as "diagsysevt"
+
+```yaml
+title: Suspicious Service Installation Named 'diagsysevt'
+id: 6a3e8f1d-2c5b-4e7a-9f1d-3b8c6a2e5f9d
+status: experimental
+description: |
+    Detects Windows service installation under the name "diagsysevt" :
+    the exact registration key used by evtdiag.exe in the 2016
+    Bangladesh Bank heist. No legitimate service is known to use this name.
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName: 'diagsysevt'
+    condition: selection
+level: critical
+falsepositives:
+    - None known.
+tags: [attack.persistence, attack.t1543.003]
+```
+
+## Rule 3 : liboradb.dll Memory-Write Access (correlation)
 
 ```yaml
 title: Memory-Write Access to a Process With liboradb.dll Loaded
 id: 4f1a9e2c-6b3d-4e7a-9c1f-8a2d5e6b7c90
 status: experimental
 description: |
-    Correlates an ImageLoad event confirming liboradb.dll was loaded into
-    a process with a subsequent ProcessAccess event granting memory-write
-    rights to that same process, matched by process identity via field
-    aliasing (ImageLoad reports ProcessGuid; ProcessAccess reports the
-    target process's identity as TargetProcessGuid). A single
-    ProcessAccess event cannot confirm the target has this DLL loaded,
-    since Sysmon's TargetImage field on Event ID 10 is the process
-    executable, not a loaded module.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/21
-tags:
-    - attack.defense-evasion
-    - attack.t1055
-    - attack.t1562
+    Correlates an ImageLoad event confirming liboradb.dll was loaded
+    into a process with a subsequent ProcessAccess event granting
+    memory-write rights to that same process, matched by process
+    identity via field aliasing. liboradb.dll loads at process start,
+    potentially hours before any malicious access; the 1-day window
+    reflects this, trading tighter precision for realistic recall.
 logsource:
     product: windows
     category: process_access
 correlation:
-    type: event_count
+    type: temporal
     rules:
         - a1b2c3d4-1111-4a1a-9a1a-111111111111
         - a1b2c3d4-2222-4a2a-9a2a-222222222222
@@ -903,13 +947,12 @@ correlation:
         process:
             a1b2c3d4-1111-4a1a-9a1a-111111111111: ProcessGuid
             a1b2c3d4-2222-4a2a-9a2a-222222222222: TargetProcessGuid
-    group-by:
-        - process
-    condition:
-        gte: 2
+    group-by: [process]
+    timespan: 1d
 level: high
 falsepositives:
-    - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes; tune per environment.
+    - Endpoint security agents and debugging tools routinely open broad-access handles to arbitrary processes; the wide 1-day window increases the chance of coincidental unrelated access being caught.
+tags: [attack.defense-evasion, attack.t1055, attack.t1562]
 ---
 title: Sentry - ImageLoad of liboradb.dll
 id: a1b2c3d4-1111-4a1a-9a1a-111111111111
@@ -941,95 +984,72 @@ detection:
 level: informational
 ```
 
-
-### Rule 2 : SQL Client Invoked as SYSDBA via Piped Shell
+## Rule 4 : Piped Silent SYSDBA sqlplus Execution
 
 ```yaml
-title: SWIFT Database Client Invoked as SYSDBA via Piped Shell Command
+title: SQL Client Invoked as SYSDBA via Piped Silent Shell Command
 id: 7c3d2e1a-8f4b-4a6d-9e2c-1b5a7d9e3f6c
 status: experimental
 description: |
-    Detects sqlplus invoked with SYSDBA privileges, piped through cmd.exe
-    with a silent "echo exit" pattern and a redirected output file. Matches
-    the exact command structure documented in the 2016 Bangladesh Bank
-    heist malware (evtdiag.exe).
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/19
-tags:
-    - attack.execution
-    - attack.t1059.003
-    - attack.defense-evasion
+    Detects sqlplus invoked with SYSDBA privileges, piped through
+    cmd.exe with a silent "echo exit" pattern. Matches the exact
+    command structure used by evtdiag.exe.
 logsource:
     category: process_creation
     product: windows
 detection:
-    selection_parent:
+    selection:
         Image|endswith: '\cmd.exe'
-    selection_child:
         CommandLine|contains|all:
             - 'echo exit'
             - 'sqlplus'
             - 'as sysdba'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate DBAs occasionally script silent sqlplus execution for scheduled maintenance.
+    condition: selection
 level: high
+falsepositives:
+    - DBAs occasionally script silent sqlplus execution for scheduled maintenance; exclude known service accounts.
+tags: [attack.execution, attack.t1059.003]
 ```
 
-### Rule 3 : Unauthorized DELETE on SAAOWNER Schema
+## Rule 5 : DELETE on SAAOWNER Message Tables
 
 ```yaml
-title: Unauthorized DELETE on SWIFT Alliance Access SAAOWNER Schema
+title: DELETE on SWIFT Alliance Access SAAOWNER Message Tables
 id: 9a1e4f2b-3c7d-4e8a-b1f5-6d2c8a4e7b9f
 status: experimental
 description: |
-    Detects DELETE statements against SAAOWNER.MESG_% or SAAOWNER.TEXT_%
-    tables. Matches the technique used to remove database records of
-    fraudulent transactions in the 2016 Bangladesh Bank heist.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/19
-tags:
-    - attack.impact
-    - attack.t1565.001
+    Detects DELETE against SAAOWNER.MESG_%/TEXT_% tables : the
+    technique used to erase database records of fraudulent SWIFT
+    transactions. Requires a field-mapping pipeline to your actual
+    Oracle audit ingestion path; successful SIGMA conversion alone does
+    not confirm these field names match your deployment.
 logsource:
     product: oracle_dbms
     category: audit
 detection:
     selection:
         action_name: 'DELETE'
-        object_name|startswith:
-            - 'MESG_'
-            - 'TEXT_'
+        object_name|startswith: ['MESG_', 'TEXT_']
         object_schema: 'SAAOWNER'
-    filter_expected_service_account:
-        dbusername: 'SAA_SERVICE'  # substitute with actual authorized service account
-    condition: selection and not filter_expected_service_account
-falsepositives:
-    - Legitimate Alliance Access housekeeping/archival jobs that periodically purge old records.
+    filter_service_account:
+        dbusername: 'SAA_SERVICE'  # replace with your real service account
+    condition: selection and not filter_service_account
 level: critical
+falsepositives:
+    - Authorized housekeeping/archival jobs; confirm executing account matches documented service identity.
+tags: [attack.impact, attack.t1565.001]
 ```
 
-### Rule 4 : Unauthorized UPDATE of Financial Amount Field
+## Rule 6 : UPDATE of Transaction Amount Field
 
 ```yaml
-title: Unauthorized UPDATE of Financial Amount Field on SWIFT SAAOWNER Schema
+title: UPDATE of Financial Amount Field on SAAOWNER Schema
 id: 2d8f3a1c-6e9b-4c7a-8f1d-3b5e9c2a7f4d
 status: experimental
 description: |
-    Detects UPDATE statements modifying MESG_FIN_CCY_AMOUNT or related
-    fields on SAAOWNER.MESG_% tables. Matches the balance-manipulation
-    technique used in the 2016 Bangladesh Bank heist.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/19
-tags:
-    - attack.impact
-    - attack.t1565.001
+    Detects UPDATE of MESG_FIN_CCY_AMOUNT : the balance-manipulation
+    technique used to alter recorded transaction amounts. Same
+    pipeline-mapping caveat as Rule 5 applies.
 logsource:
     product: oracle_dbms
     category: audit
@@ -1039,80 +1059,101 @@ detection:
         object_name|startswith: 'MESG_'
         object_schema: 'SAAOWNER'
         sql_text|contains: 'FIN_CCY_AMOUNT'
-    filter_expected_service_account:
+    filter_service_account:
         dbusername: 'SAA_SERVICE'
-    condition: selection and not filter_expected_service_account
-falsepositives:
-    - Legitimate correction of a genuinely erroneous transaction amount through documented change procedures.
+    condition: selection and not filter_service_account
 level: critical
+falsepositives:
+    - Genuine correction of an erroneous amount through documented change procedure.
+tags: [attack.impact, attack.t1565.001]
 ```
 
-### Rule 5 : SWIFT Confirmation Content in Message Files
+## Rule 7 : Self-Deletion via PING-Delay Batch
 
 ```yaml
-title: SWIFT Confirmation Message Content in Alliance Access Message Files
-id: 5b8c1e3a-7d4f-4a9c-b2e6-1f8a3c9d7e2b
+title: Process Self-Deletion via Batch File Using PING as Delay
+id: 6f9a2c4e-8d1b-4f3a-9c6e-2b4d8f1a6c9e
 status: experimental
 description: |
-    Detects file creation activity in SWIFT Alliance Access message-store
-    directories (mcm\, mcp\, mcf\) with .prc/.fal extensions. This rule
-    detects LOCATION and FILE TYPE only — Sysmon's FileCreate event does
-    not expose file content, so this rule cannot itself confirm the
-    presence of specific message strings (e.g. "FIN 900 Confirmation of
-    Debit"). Content-level inspection requires a separate mechanism
-    (e.g. a file-content-aware EDR feature, or scheduled content
-    scanning) layered on top of this rule. As written, this rule will
-    match routine, expected file activity in these directories under
-    normal Alliance Access operation and should be treated as a
-    low-confidence contextual signal, not a standalone alert.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/19
-tags:
-    - attack.collection
-    - attack.t1005
+    Detects a cmd.exe-launched batch using "PING 0.0.0.0" as a portable
+    sleep in a retry-delete loop. Matches evtsys.exe's evchk.bat
+    mechanism : a broadly reusable evasive technique, not unique to
+    this toolkit.
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\PING.EXE'
+        CommandLine|contains: '0.0.0.0'
+        ParentImage|endswith: '\cmd.exe'
+        ParentCommandLine|contains: '.bat'
+    condition: selection
+level: medium
+falsepositives:
+    - Legitimate scripts occasionally reuse "ping as sleep"; check parent batch content when possible.
+tags: [attack.defense-evasion, attack.t1070.004]
+```
+
+## Rule 8 : evtdiag.exe Spawning evtsys.exe (handoff)
+
+```yaml
+title: evtdiag.exe Spawning evtsys.exe (Self-Delete Handoff)
+id: 5c8f1a3e-9b2d-4e6a-8f1c-3d7e9a2b5c8f
+status: experimental
+description: |
+    Detects evtdiag.exe spawning evtsys.exe as a child process : the
+    documented self-delete handoff: evtdiag cannot delete its own
+    locked executable, so it spawns evtsys.exe with its own path as an
+    argument, then exits to release the file lock.
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\evtdiag.exe'
+        Image|endswith: '\evtsys.exe'
+    condition: selection
+level: critical
+falsepositives:
+    - None known; both filenames are specific to this toolkit.
+tags: [attack.defense-evasion, attack.t1070.004]
+```
+
+## Rule 9 : evchk.bat Created in %TEMP%
+
+```yaml
+title: Creation of evchk.bat in Temp Directory
+id: 8b4d2f6a-3e9c-4a7b-9d2e-6f4a8c1b5e9d
+status: experimental
+description: |
+    Detects creation of a file named evchk.bat in a user's temp
+    directory : the exact filename evtsys.exe drops for its self-delete
+    batch. Simple file-level alternative to Rule 7's process-tree view.
 logsource:
     category: file_event
     product: windows
 detection:
-    selection_path:
-        TargetFilename|contains:
-            - '\mcm\'
-            - '\mcp\'
-            - '\mcf\'
-        TargetFilename|endswith:
-            - '.prc'
-            - '.fal'
-    condition: selection_path
+    selection:
+        TargetFilename|endswith: '\AppData\Local\Temp\evchk.bat'
+    condition: selection
+level: high
 falsepositives:
-    - Routine activity in the expected message-store directories under normal Alliance Access operation.
-level: low
+    - None known; not a standard Windows or common third-party filename.
+tags: [attack.defense-evasion, attack.t1070.004]
 ```
 
-### Rule 6 : Secure-Delete Correlation (Multi-Event)
+## Rule 10 : Secure-Delete Rename-Then-Delete (correlation)
 
 ```yaml
-title: Secure-Delete Pattern - File Rename to Random String Followed by Deletion
+title: Secure-Delete Pattern - Random-Looking File Rename Followed by Deletion
 id: 8e2a4f1c-9d7b-4a3e-b6c8-2f5d9a1e4c7b
 status: experimental
 description: |
-    Correlates creation of a file with a random-looking, extensionless,
-    all-lowercase filename inside a monitored directory with deletion of
-    that same file shortly after. Matches the anti-forensic secure-delete
-    pattern documented in evtsys.exe: zero-fill overwrite, rename to a
-    random lowercase string (no extension), then delete. Sysmon's
-    FileCreate event does not expose the file's pre-rename name, so this
-    rule targets the resulting filename's shape rather than "rename"
-    directly.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-    - https://www.justice.gov/opa/press-release/file/1092091/download
-author: Hazem Akkouh
-date: 2026/09/21
-tags:
-    - attack.defense-evasion
-    - attack.t1070.004
+    Correlates creation of a random-looking, extensionless, all-lowercase
+    filename inside a monitored directory with deletion of that same
+    file shortly after. Matches evtsys.exe's zero-fill → rename → delete
+    anti-forensic pattern.
 logsource:
     product: windows
     category: file_event
@@ -1121,14 +1162,12 @@ correlation:
     rules:
         - 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
         - 4d6f8a1c-3e5b-7c9d-1f3a-5b7d9f1c3e5b
-    group-by:
-        - TargetFilename
-        - ComputerName
+    group-by: [TargetFilename, ComputerName]
     timespan: 30s
 level: high
 falsepositives:
-    - Legitimate secure-erase or file-shredding utilities produce an identical pattern; verify against approved software inventory.
-    - Extensionless filenames of similar length created by other legitimate processes (rare, but not impossible) in the monitored directory.
+    - Legitimate secure-erase or file-shredding utilities produce an identical pattern.
+tags: [attack.defense-evasion, attack.t1070.004]
 ---
 title: Sentry - Random-Looking Extensionless File Created Inside Allians Directory
 id: 1a3c5e7f-2b4d-6c8e-9a1b-3d5f7c9e1a3b
@@ -1159,105 +1198,120 @@ detection:
 level: informational
 ```
 
-### Rule 7 : Self-Deletion via Batch File with Ping-Delay Loop
+## Rule 11a : Binary Backup Created (.exe.bak)
 
 ```yaml
-title: Process Self-Deletion via Dropped Batch File with Ping-Delay Loop
-id: 6f9a2c4e-8d1b-4f3a-9c6e-2b4d8f1a6c9e
-status: experimental
-description: |
-    Detects a cmd.exe-launched batch file using "PING 0.0.0.0" as a
-    portable sleep delay in a retry loop to delete a locked executable,
-    then deleting itself. Matches the evchk.bat self-deletion technique
-    used by evtsys.exe; broadly reusable evasive self-cleanup pattern.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-author: Hazem Akkouh
-date: 2026/09/19
-tags:
-    - attack.defense-evasion
-    - attack.t1070.004
-    - attack.t1059.003
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_ping:
-        Image|endswith: '\PING.EXE'
-        CommandLine|contains: '0.0.0.0'
-        ParentImage|endswith: '\cmd.exe'
-    selection_batch_dropped:
-        ParentCommandLine|contains: '.bat'
-        ParentImage|endswith: '\cmd.exe'
-    condition: selection_ping and selection_batch_dropped
-falsepositives:
-    - Legitimate network-connectivity-testing scripts occasionally reuse the "ping as sleep" idiom.
-level: medium
-```
-
-### Rule 8 : Legitimate Binary Masquerade Swap
-
-```yaml
-title: Legitimate Binary Backed Up and Replaced Under Original Filename
-id: 3c5e7a9f-1b4d-6e8f-2a4c-6e8a1c3f5b7d
-status: experimental
-description: |
-description: |
-    Correlates a .exe.bak creation event with a subsequent .exe creation
-    event in the same folder shortly after. Grouped by folder path rather
-    than exact base filename, since SIGMA correlation does not currently
-    support "same value minus a suffix" matching cleanly, this remains a
-    known, stated limitation: the rule will correlate any .bak-then-.exe
-    pair within the same directory and time window, not specifically the
-    same original filename. Treat matches as requiring manual filename
-    verification before escalation.
-references:
-    - https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
-    - https://www.justice.gov/opa/press-release/file/1092091/download
-author: Hazem Akkouh
-date: 2026/09/21
-tags:
-    - attack.defense-evasion
-    - attack.t1036.003
-logsource:
-    product: windows
-    category: file_event
-correlation:
-    type: temporal
-    rules:
-        - b2c3d4e5-3333-4b3b-9b3b-333333333333
-        - b2c3d4e5-4444-4b4b-9b4b-444444444444
-    group-by:
-        - TargetFolder
-        - ComputerName
-    timespan: 30s
-level: medium
-falsepositives:
-    - Legitimate software update mechanisms commonly back up the previous binary before replacing it.
----
-title: Sentry - Backup File Created (.exe.bak)
+title: Backup of SWIFT Print Utility (.exe.bak) Created
 id: b2c3d4e5-3333-4b3b-9b3b-333333333333
 status: experimental
+description: |
+    Detects creation of an .exe.bak file. Broad, low-confidence signal
+    on its own; split from Rule 11b because SIGMA correlation grouping
+    requires exact field-value matches and cannot express "same base
+    name plus a suffix."
 logsource:
-    product: windows
     category: file_event
+    product: windows
 detection:
     selection:
         TargetFilename|endswith: '.exe.bak'
     condition: selection
-level: informational
----
-title: Sentry - Executable Created After Backup
-id: b2c3d4e5-4444-4b4b-9b4b-444444444444
+level: medium
+falsepositives:
+    - Legitimate software updaters commonly create .bak backups before replacement.
+tags: [attack.defense-evasion, attack.t1036.003]
+```
+
+## Rule 11b : Malicious nroff.exe Replacement Created
+
+```yaml
+title: Creation of nroff.exe or rnoff.exe
+id: 3c5e7a9f-1b4d-6e8f-2a4c-6e8a1c3f5b7d
 status: experimental
+description: |
+    Detects creation of a file named nroff.exe or rnoff.exe : the
+    filename used by the malicious print-utility replacement and its
+    staging name. Narrower, higher-confidence companion to Rule 11a.
 logsource:
-    product: windows
     category: file_event
+    product: windows
 detection:
     selection:
-        TargetFilename|endswith: '.exe'
+        TargetFilename|endswith: ['\nroff.exe', '\rnoff.exe']
+    filter_legit_install:
+        Image|endswith: '\AllianceInstaller.exe'  # replace with your actual installer process
+    condition: selection and not filter_legit_install
+level: high
+falsepositives:
+    - Legitimate SWIFT Alliance Access install/upgrade creates nroff.exe; exclude the known installer process.
+tags: [attack.defense-evasion, attack.t1036.003]
+```
+
+## Rule 12 : C2 Beacon URI Pattern
+
+```yaml
+title: HTTP Beacon Matching BBM Toolkit C2 URI Pattern
+id: 4a1e9d3c-2f5b-4c8e-9a1d-3f6b9e2c5a8d
+status: experimental
+description: |
+    Detects an HTTP GET with the "/al?---O", "/al?---C", or "/al?---N"
+    URI pattern : the exact beacon format used by evtdiag.exe.
+    Behavioral, not tied to the dead 2016 C2 IP.
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-uri-stem|contains: '/al?---'
     condition: selection
-level: informational
+level: high
+falsepositives:
+    - Extremely unlikely; no known legitimate use of this URI pattern.
+tags: [attack.command-and-control, attack.t1071.001]
+```
+
+## Rule 13 : Bulk Deletion of Sequence-Non-First Message Files
+
+```yaml
+title: File Deletion Matching Malware Sequence-Cleanup Pattern in mcp Directories
+id: 4d7e2a9c-6b3f-4e8d-9a2c-7e5b3d8f1a6c
+status: experimental
+description: |
+    Detects deletion of files matching "<digits>_*-*" inside
+    mcp\nfzp or mcp\nfzf : the exact wildcard evtdiag.exe uses to
+    bulk-delete non-sequence-first message files after extracting
+    transaction references from the sequence-first file.
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: ['\mcp\nfzp\', '\mcp\nfzf\']
+    selection_pattern:
+        TargetFilename|re: '\\\d+_.*-.*$'
+    condition: selection_path and selection_pattern
+level: high
+falsepositives:
+    - Low; verify against your specific Alliance Access version's own housekeeping before deploying at high severity.
+tags: [attack.defense-evasion, attack.t1070.004]
+```
+
+---
+
+## Bonus : YARA, not SIGMA, for binary/config matching
+
+```yara
+rule BBM_Toolkit_RC4_Key_And_Sentinel
+{
+    meta:
+        description = "Matches the hardcoded RC4 key and nroff-comment sentinel used across the 2016 Bangladesh Bank heist toolkit"
+        author = "Hazem Akkouh"
+    strings:
+        $rc4_key = { 4E 38 1F A7 7F 08 CC AA 0D 56 ED EF F9 ED 08 EF }
+        $sentinel = "_DO_NOT_USE_MM_"
+        $service_name = "diagsysevt"
+    condition:
+        any of them
+}
 ```
 
 
@@ -1514,9 +1568,8 @@ Rename-Item -Path $original -NewName "nroff.exe.bak"
 
 ## 9. Testing
 
-Every rule below was validated by (1) running its emulator script, (2) confirming the expected Sysmon/Oracle telemetry was actually captured, and (3) converting the rule through pySigma (via sigconverter.io) to real SIEM/EDR query languages.
+Every rule was validated by (1) running its emulator script, (2) confirming the expected Sysmon/Oracle telemetry was actually captured, and (3) converting the rule through sigconverter.io to real SIEM/EDR query languages.
 
-### 9.1 Rule-by-Rule Validation Results
 
 | Rule | Emulator run | Telemetry confirmed | Result |
 |---|---|---|---|
@@ -1528,38 +1581,6 @@ Every rule below was validated by (1) running its emulator script, (2) confirmin
 | 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) : **required discovering FileDelete was never enabled at all, then the crash bug above** |  Confirmed, after fixing 2 real Sysmon defects |
 | 7 | `self_delete_batch_sim.ps1` | Full process tree captured: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0`; Event 11 for `.bat` creation in `%TEMP%` |  Confirmed |
 | 8 | `binary_swap_sim.ps1` | Event 11 for `nroff.exe` creation (both the pre- and post-swap versions) |  Confirmed |
-
-### 9.2 Vendor-Neutral Conversion Evidence
-
-All three correlation-based rules in this project (Rules 1, 6, and 8) convert successfully to Splunk SPL; none currently convert to Microsoft Sentinel (Kusto), as the sigconverter.io Kusto backend does not yet implement SIGMA's correlation rule type at the time of writing. This is a backend-maturity limitation, not a defect in the underlying detection logic.
-All 8 rules were converted via **sigconverter.io** to three real backend targets:
-
-| Backend | Result |
-|---|---|
-| **Splunk (SPL)** | All 8 rules converted successfully, including Rule 6's correlation logic (translated into a `bin`/`stats`/`dc()` windowing idiom) |
-| **Microsoft Sentinel (Kusto/KQL)** | Rules 1-5, 7-8 converted successfully. **Rule 6 failed with an explicit backend error: "Backend does not support correlation rules."** This is a genuine, documented limitation of current SIGMA tooling maturity, not a flaw in the rule's logic. |
-| **SentinelOne EDR** | All 8 rules converted successfully (note: SentinelOne the EDR product is distinct from Microsoft Sentinel the SIEM : a naming collision worth being explicit about, since sigconverter.io lists the EDR target as `sentinel_one`) |
-
-**Example : Rule 2 converted to EQL (Elastic):**
-```eql
-any where Image:"*\\cmd.exe" and (CommandLine:"*echo exit*" and CommandLine:"*sqlplus*" and CommandLine:"*as sysdba*")
-```
-
-**Example : Rule 6's correlation logic converted to Splunk SPL:**
-```spl
-| multisearch
-[ search TargetFilename="*\\Allians\\*" | eval event_type="filecreate" ]
-[ search TargetFilename="*\\Allians\\*" | eval event_type="filedelete" ]
-| bin _time span=30s
-| stats dc(event_type) as event_type_count by _time ComputerName
-| search event_type_count >= 2
-```
-
-
-<p align="center">
-  <img width="1439" height="835" alt="image" src="https://github.com/user-attachments/assets/22628b59-a8e3-4029-b321-9374bf70e3d9" />
-</p>
-```
 
 
 ## 10. GRC Mapping
@@ -1592,22 +1613,9 @@ Stated plainly, not buried:
 
 - **No real Alliance Access.** The validation environment simulates the environment class Alliance Access operates within; it does not include the proprietary application itself, which cannot legally be obtained outside SWIFT membership.
 - **False-positive rates are not empirically measured** against production SWIFT-environment traffic, which was not accessible for this project. FP estimates reflect general security-engineering practice, not lab-measured data.
-- **Rule 1's GrantedAccess exact-match logic is brittle** : a known limitation of Sysmon ProcessAccess-based detection generally, not unique to this rule.
-- **SIGMA correlation-rule backend support is immature** : Rule 6's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
-- **The `mcf\` directory's full function is not completely characterized** in this analysis : flagged as an open question.
-- **This report has not undergone formal peer review** at the time of publication; a separate, peer-review-track academic version of this work exists as a companion paper.
+- **SIGMA correlation-rule backend support is immature** : some Rules's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
 
 ---
 
-## 12. What's Next
-
-- **Formal SigmaHQ submission** : several of these rules (particularly Rule 1 and Rule 6, the two most generalizable behaviors) are strong candidates for submission to the official SigmaHQ public rule repository, following their contribution conventions and providing the real Sysmon telemetry captured here as test evidence.
-- **Sysmon FileDelete crash : GitHub issue.** The bug documented in Section 8.3 should be reported to the Sysinternals/Sysmon repository as a stability regression, with the isolated minimal reproduction case, separate from any security-vulnerability framing (this is a crash/DoS finding, not a confirmed exploitable memory-corruption bug).
-- **NESTEGG backdoor rule set** : the DOJ complaint documents a fourth malware component (the NESTEGG backdoor: scheduled task → MD5-keyed payload decrypt → firewall modification → listening service) not covered by this rule set; a future extension should build emulators and rules for this install chain.
-- **Full characterization of the `mcf\` directory's role** : an open question flagged in Section 8.
-- **Empirical false-positive testing** against a live SIEM (Wazuh or an authorized SentinelOne EDR instance) ingesting the same telemetry, rather than the offline log-matching validation used here.
-- **Academic peer review** of the companion paper, targeting a Scopus-indexed Q1 venue in the digital forensics/security-applications space.
-
----
 
 *If you found this useful, the full rule set, lab configuration files, and emulator scripts are available in the "main" repo. Corrections, especially to the reverse-engineering findings in Sections 3-4 and in the complete RE PDF file, are welcome.
