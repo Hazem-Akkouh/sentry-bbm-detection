@@ -24,7 +24,6 @@
 9. [Testing](#9-testing)
 10. [GRC Mapping](#10-grc-mapping)
 11. [Limitations](#11-limitations)
-12. [What's Next](#12-whats-next)
 
 ---
 
