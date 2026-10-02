@@ -1587,25 +1587,26 @@ Every result below reflects only what was actually run and captured in this lab,
 | 13 |  |  | **Logic-sound, untested** : fires on a direct FileDelete event matching a documented wildcard pattern; no emulator built yet |
 
 
+
 ## 10. GRC Mapping
 
-The detection content above is mapped against four frameworks relevant to a financial institution operating SWIFT infrastructure. Mappings reflect SWIFT CSCF v2024, the version current at the time this research was conducted; readers should verify against the current CSCF edition at time of use. Citations to Bank Al-Maghrib Directive 3/W/16 and Morocco's DNSSI (2023 revision) reference specific articles/sections; readers relying on these for compliance purposes should independently verify against the primary published texts.
+The detection content above is mapped against five frameworks relevant to a financial institution operating SWIFT infrastructure. All citations below were independently verified against primary source text (SWIFT CSCF v2024, Bank Al-Maghrib Directive 3/W/16, Morocco's DNSSI 2023, ISO/IEC 27002:2022, and NIST SP 800-61r3), none are inferred from memory or general familiarity with these standards. Readers should still verify against the current edition of each framework at time of use, as all five publish periodic revisions.
 
-| Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002 |
-|---|---|---|---|---|
-| 1 | No specific CSCF control for filesystem/directory-level anomaly detection; falls only under the general 6.4 Logging and Monitoring mandate at a generic level |  | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 2 | **6.4 Logging and Monitoring**: "operating system logs which detail abnormal system behaviour" is a named minimum required log |  | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 3 | **6.2 Software Integrity**: in-memory integrity checking is listed only as an *Optional Enhancement* ("An integrity check is performed in memory"), not mandatory | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 4 | **6.4 Logging and Monitoring**: explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* |  | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
-| 5 | **6.3 Database Integrity**: "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* |  | EXP-JOURN/SURV-JOURNAL | A.8.16 |
-| 6 | **2.9 Transaction Business Controls**: explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures |  | No direct equivalent: DNSSI is a general baseline, not transaction-specific | A.8.16 |
-| 7 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (the documented malware operates under the Administrator account) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
-| 8 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
-| 9 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
-| 10 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV**: evidence-preservation/chain-of-custody requirement ("recueil des éléments physiques... protection et la sauvegarde de l'intégrité et l'état d'origine des preuves potentielles"), directly on point | A.5.28 |
-| 11a, 11b | **6.2 Software Integrity**: "conducted... upon start-up, and additionally at least once per day"  a daily-cadence requirement that would likely miss a same-day swap-and-revert |  | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
-| 12 | **6.5A Intrusion Detection**: implementation guidance explicitly names "unexpected connections... unexpected port or protocol use" as tracked network activity |  | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 13 | No explicit coverage in CSCF (same gap class as Rule 10) |  | EXP-JOURN/SURV-JOURNAL | A.8.16 |
+| Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002:2022 | NIST SP 800-61r3 (CSF 2.0) |
+|---|---|---|---|---|---|
+| 1 | No specific CSCF control for filesystem/directory-level anomaly detection; falls only under the general 6.4 Logging and Monitoring mandate at a generic level |  | EXP-JOURN/SURV-CENTR | A.8.16 Monitoring activities | DE.CM-09: "signs of tampering, failure, or compromise" |
+| 2 | **6.4 Logging and Monitoring**: "operating system logs which detail abnormal system behaviour" is a named minimum required log |  | EXP-JOURN/SURV-CENTR | A.8.16 Monitoring activities | DE.CM-09: "deviations from security baselines" |
+| 3 | **6.2 Software Integrity**: in-memory integrity checking is listed only as an *Optional Enhancement* ("An integrity check is performed in memory"), not mandatory | Testing-methodology alignment (black-box/white-box testing approaches, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 Monitoring activities | DE.CM-09 (tampering) + **DE.AE-03**: "Information is correlated from multiple sources" (direct match — this is a correlation rule) |
+| 4 | **6.4 Logging and Monitoring**: explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* |  | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 Logging | DE.CM-03: "authentication and logical access attempts" |
+| 5 | **6.3 Database Integrity**: "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* |  | EXP-JOURN/SURV-JOURNAL | A.8.16 Monitoring activities | DE.CM-09 (tampering) + DE.AE-08: "Incidents are declared when adverse events meet the defined incident criteria" |
+| 6 | **2.9 Transaction Business Controls**: explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures |  | No direct equivalent: DNSSI is a general baseline, not transaction-specific | A.8.16 Monitoring activities | DE.CM-09 (tampering) |
+| 7 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" |  | EXP-JOURN/SURV-JOURNAL | A.8.15 Logging | DE.CM-09 (tampering) + DE.CM-03 (technology usage) |
+| 8 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" |  | EXP-JOURN/SURV-JOURNAL | A.8.15 Logging | DE.CM-09 (tampering) + DE.CM-03 (technology usage) |
+| 9 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" |  | EXP-JOURN/SURV-JOURNAL | A.8.15 Logging | DE.CM-09 (tampering) + DE.CM-03 (technology usage) |
+| 10 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with risk-based pentest scoping requirement (Art. premier, Art. 2) | **INCID-GEST-PREUV**: evidence-preservation/chain-of-custody requirement ("recueil des éléments physiques... protection et la sauvegarde de l'intégrité et l'état d'origine des preuves potentielles"), directly on point | A.5.28 Collection of evidence | **DE.AE-03**: "Information is correlated from multiple sources" (direct match, this is a correlation rule) |
+| 11a, 11b | **6.2 Software Integrity**: "conducted... upon start-up, and additionally at least once per day", a daily-cadence requirement that would likely miss a same-day swap-and-revert |  | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 Change management | DE.CM-09: "deviations from security baselines" |
+| 12 | **6.5A Intrusion Detection**: implementation guidance explicitly names "unexpected connections... unexpected port or protocol use" as tracked network activity |  | EXP-JOURN/SURV-CENTR | A.8.16 Monitoring activities | DE.CM-01: "Networks and network services are monitored to find potentially adverse events" |
+| 13 | No explicit coverage in CSCF (same gap class as Rule 10) |  | EXP-JOURN/SURV-JOURNAL | A.8.16 Monitoring activities | DE.CM-09 (tampering) |
 
 **Findings worth emphasizing:**
 
@@ -1613,10 +1614,11 @@ CSCF's own text reveals that the specific control that would have caught the act
 
 Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques or arbitrary directory-level anomaly detection. Rules 1, 10, and 13 each address a real gap in current framework coverage.
 
-6.4 Logging and Monitoring underpins the largest share of this rule set (Rules 2, 4, 7, 8, 9) , a direct, citable confirmation that the process/command-line-level logging this detection approach depends on is already a named mandatory CSCF requirement.
+6.4 Logging and Monitoring underpins the largest share of this rule set within CSCF (Rules 2, 4, 7, 8, 9), a direct, citable confirmation that the process/command-line-level logging this detection approach depends on is already a named mandatory CSCF requirement.
 
-
+Rules 3 and 10, the only two multi-event correlation rules in this set are the only rules mapped to NIST DE.AE-03 ("information is correlated from multiple sources"). This is not a coincidence: it confirms that the specific behaviors requiring SIGMA's native correlation construct are exactly the behaviors NIST's own framework identifies as a distinct detection activity, separate from single-source monitoring.
 ---
+
 
 ## 11. Limitations
 
