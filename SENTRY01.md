@@ -241,7 +241,7 @@ DWORD ServiceMain(void)
 }
 ```
 
-**Novel observation, corrected : CLI commands are unconditional.** DAT_004195c9 is set to 1 unconditionally inside the -svc branch, immediately before StartServiceCtrlDispatcherA is called — it is a flag written to signal service-mode state to ServiceMain, not a gate on anything in the CLI dispatcher. Verified directly against the full decompiled CLI dispatcher (FUN_00409db0): none of the CLI-invoked commands (-i, -u, -t, -p, -g, -r, -s) reference DAT_004195c9 at any point, each executes its corresponding function unconditionally upon a successful argument match. The flag is read only inside ServiceMain's own internal logic to decide whether to automatically invoke the patch function after the login-detection wait completes. CLI invocation and the -svc/ServiceMain automatic path are entirely independent code routes to their respective functions; there is no shared gating condition between them. At the beginning of this article, we incorrectly stated that the CLI commands are gated by this flag; this has been corrected after re-verification against the actual decompiled dispatcher function.
+**Novel observation, corrected : CLI commands are unconditional.** DAT_004195c9 is set to 1 unconditionally inside the -svc branch, immediately before StartServiceCtrlDispatcherA is called, it is a flag written to signal service-mode state to ServiceMain, not a gate on anything in the CLI dispatcher. Verified directly against the full decompiled CLI dispatcher (FUN_00409db0): none of the CLI-invoked commands (-i, -u, -t, -p, -g, -r, -s) reference DAT_004195c9 at any point, each executes its corresponding function unconditionally upon a successful argument match. The flag is read only inside ServiceMain's own internal logic to decide whether to automatically invoke the patch function after the login-detection wait completes. CLI invocation and the -svc/ServiceMain automatic path are entirely independent code routes to their respective functions; there is no shared gating condition between them. At the beginning of this article, we incorrectly stated that the CLI commands are gated by this flag; this has been corrected after re-verification against the actual decompiled dispatcher function.
 
 **Novel observation : the ST-N state machine:** five log strings form an internal lifecycle tracker written to `recas.dat`:
 
@@ -746,7 +746,7 @@ Taken together, beyond the six formal attribution lines above, the technical det
 
 **The compile timestamps** tell a story numbers alone don't capture. `evtsys.exe` compiled February 4 at 13:45 UTC; `nroff_b.exe` followed February 5 at 08:55; `evtdiag.exe` : the main binary : was compiled last, on February 5 at 11:46, ~12.2 hours before the kill switch was designed to fire (converting the kill switch's local-time trigger to UTC for comparison). The developer was still compiling the main binary the day before the operation ended. **This reading carries low confidence**, since PE compile timestamps are attacker-controlled and not independently verified here, but if taken at face value, it does not read as a team that prepared months in advance and tested carefully: it suggests a rushed final build, possibly incorporating last-minute changes based on reconnaissance of the victim environment. The kill switch date is hardcoded as literal bytes in the binary (**year `0x7E0`, month `0x02`, day `0x06`**). Someone sat down and typed that date. They knew exactly how long the operation needed to run.
 
-**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" : in the path template, the directory name, the config file location : appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written : meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled. A simpler alternative explanation for the 'Allians' misspelling, a deliberate lookalike name chosen for the same reason evtsys.exe/nroff_b.exe mimic legitimate names, or a typo carried through the codebase without correction — cannot be ruled out and should be weighed alongside the insider-knowledge interpretation above
+**The "Allians" misspelling** is small but telling. The legitimate SWIFT software directory is "Alliance." The attacker consistently used "Allians" : in the path template, the directory name, the config file location : appearing in at least four distinct string constants across the binary, not a one-time typo corrected elsewhere. Either the attacker copied the misspelling from an internal reconnaissance note that itself contained the error, or they observed the actual directory on the victim system and it had already been created with that spelling before the malware was written : meaning the directory was pre-staged by someone with physical or remote access to the server before the binaries were compiled. A simpler alternative explanation for the 'Allians' misspelling, a deliberate lookalike name chosen for the same reason evtsys.exe/nroff_b.exe mimic legitimate names, or a typo carried through the codebase without correction , cannot be ruled out and should be weighed alongside the insider-knowledge interpretation above
 
 **The operator CLI is the most psychologically revealing artifact.** Twelve commands. Pause, resume, on, off, queue for the printer. Install and uninstall for the liboradb patch : both directions. A manual C2 beacon trigger. A file-staging command and a separate swap command. This is not a fire-and-forget tool. Someone planned to be present during the operation, issuing commands, monitoring the printer, controlling the patch state. The bidirectionality of the patch : the ability to uninstall as cleanly as install : suggests an operator who expected to need to leave the system in a clean state on demand, not only at the kill switch. They thought about getting caught mid-operation and planned an exit.
 
@@ -829,7 +829,7 @@ The following table tracks every significant finding from this analysis against 
 | 2 | Full 12-command operator CLI | BAE/Oosthoek mention only `-svc` and 4 printer commands (5 total) | **Novel** |
 | 3 | Three-binary handoff architecture (nroff_b → evtdiag → evtsys) | Not described as a coordinated pipeline anywhere | **Novel** |
 | 4 | Bidirectional liboradb patch (install AND uninstall) | Prior reports describe install-only | **Novel** |
-| 5 |Service-mode gating of the automatic patch install — the liboradb.dll patch is only installed automatically when running as a service (DAT_004195c9 = 1); CLI -i invocation is unconditional and independent. | Not documented | **Novel** |
+| 5 |Service-mode gating of the automatic patch install , the liboradb.dll patch is only installed automatically when running as a service (DAT_004195c9 = 1); CLI -i invocation is unconditional and independent. | Not documented | **Novel** |
 | 6 | ST-0-E/ST-1/ST-2/ST-3/ST-100 internal state machine | Not enumerated anywhere | **Novel** |
 | 7 | Byte-level proof of kill switch constants (2016/2/6/6) | BAE mentions a kill switch date; no byte-level disassembly shown | **Extends prior work** |
 | 8 | C2 payload queue polled every second (immediate exfil, not just hourly heartbeat) | BAE describes "hourly beacon" only | **Novel** |
@@ -858,7 +858,7 @@ The following table tracks every significant finding from this analysis against 
 
 
 NOTES :
-Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XREF and disassembly evidence in Section 3.4; the original authors have not been contacted for confirmation prior to publication, and this correction should be treated as a reproducible technical observation open to independent verification, not a settled fact
+Findings #16/#17 (recas.dat, "buffer overflow" corrections) are based on the XREF and disassembly evidence; the original authors have not been contacted for confirmation prior to publication, and this correction should be treated as a reproducible technical observation open to independent verification, not a settled fact
 
 
 ---
@@ -1567,24 +1567,24 @@ Rename-Item -Path $original -NewName "nroff.exe.bak"
 
 ## 9. Testing
 
-Every result below reflects only what was actually run and captured in this lab, mapped to the current 13-rule numbering. Rules without a built emulator are marked **Logic-sound, untested** — the detection logic triggers on a specific, real, documented event, but has not yet been exercised against live telemetry in this environment.
+Every result below reflects only what was actually run and captured in this lab, mapped to the current 13-rule numbering. Rules without a built emulator are marked **Logic-sound, untested** : the detection logic triggers on a specific, real, documented event, but has not yet been exercised against live telemetry in this environment.
 
 | Rule | Emulator run | Telemetry confirmed | Result |
 |---|---|---|---|
-| 1 | — | — | **Logic-sound, untested** — fires on a direct FileCreate event (mcf\ directory creation); no emulator built yet |
-| 2 | — | — | **Logic-sound, untested** — fires on a direct Event 7045 (service registration); no emulator built yet |
-| 3 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `GrantedAccess: 0x1028` confirmed | **Partially confirmed** — the ProcessAccess sub-event is confirmed; the ImageLoad sub-event and full temporal correlation were not tested end-to-end |
+| 1 |  |  | **Logic-sound, untested** : fires on a direct FileCreate event (mcf\ directory creation); no emulator built yet |
+| 2 |  |  | **Logic-sound, untested** : fires on a direct Event 7045 (service registration); no emulator built yet |
+| 3 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `GrantedAccess: 0x1028` confirmed | **Partially confirmed** : the ProcessAccess sub-event is confirmed; the ImageLoad sub-event and full temporal correlation were not tested end-to-end |
 | 4 | `simulate_sqlplus_attack.ps1` | Process tree (`cmd.exe` → `sqlplus`) + Oracle audit trail entry, `DBUSERNAME: SYS` | Confirmed |
 | 5 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text, correct TEXT-then-MESG order | Confirmed |
 | 6 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` | Confirmed |
 | 7 | `self_delete_batch_sim.ps1` | Full process tree: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0` | Confirmed |
-| 8 | — | — | **Logic-sound, untested** — fires on a direct ProcessCreate event (evtdiag.exe spawning evtsys.exe); the emulator used a generic parent process, not this specific relationship |
+| 8 |  |  | **Logic-sound, untested** : fires on a direct ProcessCreate event (evtdiag.exe spawning evtsys.exe); the emulator used a generic parent process, not this specific relationship |
 | 9 | `self_delete_batch_sim.ps1` | Sysmon Event 11 for `evchk.bat` creation in `%TEMP%` | Confirmed |
-| 10 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename) + Event 23 (delete); observed filename consistent with the rule's current regex | **Partially confirmed** — raw telemetry captured, but the corrected YAML has not been re-run against it since the fix |
-| 11a | `binary_swap_sim.ps1` | No `nroff.exe.bak` creation event captured in the data reviewed | **Logic-sound, not yet confirmed** — fires on a direct FileCreate event; the specific `.bak` event wasn't observed in this test run |
+| 10 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename) + Event 23 (delete); observed filename consistent with the rule's current regex | **Partially confirmed** : raw telemetry captured, but the corrected YAML has not been re-run against it since the fix |
+| 11a | `binary_swap_sim.ps1` | No `nroff.exe.bak` creation event captured in the data reviewed | **Logic-sound, not yet confirmed** : fires on a direct FileCreate event; the specific `.bak` event wasn't observed in this test run |
 | 11b | `binary_swap_sim.ps1` | Sysmon Event 11 for `nroff.exe` creation (captured twice) | Confirmed |
-| 12 | — | — | **Logic-sound, untested** — fires on a direct proxy/firewall log match (URI pattern); no network-layer test built yet |
-| 13 | — | — | **Logic-sound, untested** — fires on a direct FileDelete event matching a documented wildcard pattern; no emulator built yet |
+| 12 |  |  | **Logic-sound, untested**  fires on a direct proxy/firewall log match (URI pattern); no network-layer test built yet |
+| 13 |  |  | **Logic-sound, untested** : fires on a direct FileDelete event matching a documented wildcard pattern; no emulator built yet |
 
 
 ## 10. GRC Mapping
@@ -1593,19 +1593,19 @@ The detection content above is mapped against four frameworks relevant to a fina
 
 | Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002 |
 |---|---|---|---|---|
-| 1 | No specific CSCF control for filesystem/directory-level anomaly detection; falls only under the general 6.4 Logging and Monitoring mandate at a generic level | — | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 2 | **6.4 Logging and Monitoring**: "operating system logs which detail abnormal system behaviour" is a named minimum required log | — | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 1 | No specific CSCF control for filesystem/directory-level anomaly detection; falls only under the general 6.4 Logging and Monitoring mandate at a generic level |  | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 2 | **6.4 Logging and Monitoring**: "operating system logs which detail abnormal system behaviour" is a named minimum required log |  | EXP-JOURN/SURV-CENTR | A.8.16 |
 | 3 | **6.2 Software Integrity**: in-memory integrity checking is listed only as an *Optional Enhancement* ("An integrity check is performed in memory"), not mandatory | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 4 | **6.4 Logging and Monitoring**: explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* | — | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
-| 5 | **6.3 Database Integrity**: "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* | — | EXP-JOURN/SURV-JOURNAL | A.8.16 |
-| 6 | **2.9 Transaction Business Controls**: explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures | — | No direct equivalent: DNSSI is a general baseline, not transaction-specific | A.8.16 |
-| 7 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (the documented malware operates under the Administrator account) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
-| 8 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
-| 9 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 4 | **6.4 Logging and Monitoring**: explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* |  | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
+| 5 | **6.3 Database Integrity**: "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* |  | EXP-JOURN/SURV-JOURNAL | A.8.16 |
+| 6 | **2.9 Transaction Business Controls**: explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures |  | No direct equivalent: DNSSI is a general baseline, not transaction-specific | A.8.16 |
+| 7 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (the documented malware operates under the Administrator account) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 8 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 9 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) |  | EXP-JOURN/SURV-JOURNAL | A.8.15 |
 | 10 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV**: evidence-preservation/chain-of-custody requirement ("recueil des éléments physiques... protection et la sauvegarde de l'intégrité et l'état d'origine des preuves potentielles"), directly on point | A.5.28 |
-| 11a, 11b | **6.2 Software Integrity**: "conducted... upon start-up, and additionally at least once per day" — a daily-cadence requirement that would likely miss a same-day swap-and-revert | — | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
-| 12 | **6.5A Intrusion Detection**: implementation guidance explicitly names "unexpected connections... unexpected port or protocol use" as tracked network activity | — | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 13 | No explicit coverage in CSCF (same gap class as Rule 10) | — | EXP-JOURN/SURV-JOURNAL | A.8.16 |
+| 11a, 11b | **6.2 Software Integrity**: "conducted... upon start-up, and additionally at least once per day"  a daily-cadence requirement that would likely miss a same-day swap-and-revert |  | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
+| 12 | **6.5A Intrusion Detection**: implementation guidance explicitly names "unexpected connections... unexpected port or protocol use" as tracked network activity |  | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 13 | No explicit coverage in CSCF (same gap class as Rule 10) |  | EXP-JOURN/SURV-JOURNAL | A.8.16 |
 
 **Findings worth emphasizing:**
 
@@ -1613,7 +1613,7 @@ CSCF's own text reveals that the specific control that would have caught the act
 
 Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques or arbitrary directory-level anomaly detection. Rules 1, 10, and 13 each address a real gap in current framework coverage.
 
-6.4 Logging and Monitoring underpins the largest share of this rule set (Rules 2, 4, 7, 8, 9) — a direct, citable confirmation that the process/command-line-level logging this detection approach depends on is already a named mandatory CSCF requirement.
+6.4 Logging and Monitoring underpins the largest share of this rule set (Rules 2, 4, 7, 8, 9) , a direct, citable confirmation that the process/command-line-level logging this detection approach depends on is already a named mandatory CSCF requirement.
 
 
 ---
