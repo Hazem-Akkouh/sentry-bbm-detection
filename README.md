@@ -1,6 +1,6 @@
 # SENTRY  Behavioral Detection for the 2016 Bangladesh Bank SWIFT Toolkit
 
-**8 vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping  for a malware family that had zero published detection content for eight years.**
+**vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping  for a malware family that had zero published detection content for eight years.**
 
 > 📄 **Full technical write-up:** [SENTRY01.md](./SENTRY01.md)  the complete report (static analysis, Ghidra deep-dive, attribution, IOCs, all 8 rules explained, environment build, testing, GRC mapping).
 > 📑 **Companion academic paper:** *link coming soon*
@@ -29,14 +29,6 @@ This project:
 - Converted every rule to Splunk SPL, Microsoft Sentinel (KQL), and SentinelOne EDR syntax
 - Mapped the resulting rules against SWIFT CSCF v2024, Morocco's DNSSI, Bank Al-Maghrib Directive 3/W/16, and ISO/IEC 27002
 
-## Using the rules
-
-Each file in [`/rules`](./rules) is a standard SIGMA rule. Convert to your SIEM's native query language with the free web interface at [sigconverter.io](https://sigconverter.io):
-
-```bash
-pip install pysigma pysigma-backend-splunk
-sigma convert -t splunk rules/SENTRY_Rule1_liboradb_access.yml
-```
 
 ## Reproducing the validation environment
 
