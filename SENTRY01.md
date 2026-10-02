@@ -118,7 +118,7 @@ Every path is built at startup from a template string at `.data:0x40F0A4`:
 | `mcm\` | Message store : primary FIN messages | `.data:0x40F068` |
 | `mcp\` | Message processing : post-processed | `.data:0x40F09C` |
 | `mcs\` | Message state | `.data:0x40F08C` |
-| `mcf\` | **Fourth monitored directory : not documented in BAE 2016** | `.data:0x40F0A0` |
+| `mcf\` | Fourth monitored directory, not documented in BAE 2016. Created by evtdiag at runtime, does not exist in a clean Alliance Access installation. Serves as staging area for doctored PRT files from MT950 and MT515 handlers. Presence alone is a definitive IOC | `.data:0x40F0A0` |
 
 **Files the malware creates and uses:**
 
@@ -801,7 +801,7 @@ All IOCs below are grounded in disassembly evidence documented in Section 3. Pri
 | `gpca.dat` in any non-standard directory | File | Generic filename, specific to this toolkit in context |
 | `recas.dat` alongside `gpca.dat` in an `Allians\` directory | File | Presence together more significant than either alone |
 | Directory named `Allians` under `AppData\Local\Administrator` | File/Directory | Misspelled : legitimate SWIFT uses "Alliance" |
-| `mcf\` subdirectory being written alongside `mcm\`, `mcp\`, `mcs\` | File | Novel finding : the fourth monitored directory |
+| Directory Allians\mcf\ present on any Alliance Access host | Directory | Created at runtime by evtdiag, does not exist in a clean installation. Presence alone is definitive evidence evtdiag ran on this system.|
 | SWIFT MT tags `36B:`, `61:`, `64:`, `65:` parsed by a non-SWIFT process | Behavioral | Extended tag set beyond BAE's original documentation |
 | HTTP `GET /al?` to port 80 (any host) | Network | Generic beacon URI pattern, significant only combined with others |
 | Rapid zero-byte writes to 4-character-filename files in SWIFT spool directories | File/Behavioral | The PRT cleanup loop running every second |
@@ -829,7 +829,7 @@ The following table tracks every significant finding from this analysis against 
 | 2 | Full 12-command operator CLI | BAE/Oosthoek mention only `-svc` and 4 printer commands (5 total) | **Novel** |
 | 3 | Three-binary handoff architecture (nroff_b → evtdiag → evtsys) | Not described as a coordinated pipeline anywhere | **Novel** |
 | 4 | Bidirectional liboradb patch (install AND uninstall) | Prior reports describe install-only | **Novel** |
-| 5 | Service-mode gating of the patch (None of the CLI-invoked commands reference the service-mode flag; each runs unconditionally on argument match.) | Not documented | **Novel** |
+| 5 |Service-mode gating of the automatic patch install — the liboradb.dll patch is only installed automatically when running as a service (DAT_004195c9 = 1); CLI -i invocation is unconditional and independent. | Not documented | **Novel** |
 | 6 | ST-0-E/ST-1/ST-2/ST-3/ST-100 internal state machine | Not enumerated anywhere | **Novel** |
 | 7 | Byte-level proof of kill switch constants (2016/2/6/6) | BAE mentions a kill switch date; no byte-level disassembly shown | **Extends prior work** |
 | 8 | C2 payload queue polled every second (immediate exfil, not just hourly heartbeat) | BAE describes "hourly beacon" only | **Novel** |
@@ -854,7 +854,7 @@ The following table tracks every significant finding from this analysis against 
 | 27 | Message-block extractor shared between print and message-file subsystems (5 XREFs, 2 callers) | Not documented | **Novel** |
 | 28 | fpat.exe (African Bank) patches on-disk vs. evtdiag's in-memory-only patch : implementation distinction | DOJ documents both incidents; the direct side-by-side implementation comparison is original synthesis | **Extends prior work** |
 | 29 | Sysmon 15.21 crashes on `name` attribute in `FileDelete` rule elements (tooling finding, not malware finding) | Historically reported for older Sysmon versions/different scenario; this is a distinct/regressed instance | **Novel (tooling, not malware)** |
-| 30 | 8 deployable SIGMA rules derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident, This claim was checked against over 20 vendor and community threat-intelligence reports and dozens of open-source SIGMA rule repositories during the initial research phase of this project; of the sources reviewed, only three (BAE Systems, U.S. DOJ, and Oosthoek & Doerr) contain technical detail specific enough to be directly comparable to this work, and are the only ones cited by name throughout this report. ** | **Novel : the core contribution** |
+| 30 | 13 SIGMA rules and 1 YARA rule derived from this behavioral taxonomy | **No prior detection content of any kind exists for this incident, This claim was checked against over 20 vendor and community threat-intelligence reports and dozens of open-source SIGMA rule repositories during the initial research phase of this project; of the sources reviewed, only three (BAE Systems, U.S. DOJ, and Oosthoek & Doerr) contain technical detail specific enough to be directly comparable to this work, and are the only ones cited by name throughout this report. ** | **Novel : the core contribution** |
 
 
 NOTES :
@@ -1327,7 +1327,7 @@ SWIFT Alliance Access is proprietary, licensed exclusively to SWIFT member insti
 - **VM:** Windows Server 2022 Standard (Desktop Experience), VMware Workstation, host-only networking
 - **Database:** Oracle Database 21c Express Edition, pluggable database `XEPDB1`
 - **Telemetry:** Sysmon, SwiftOnSecurity community baseline configuration, with four targeted modifications
-- **Folder structure:** `C:\Allians\mcm\`, `mcp\`, `mcs\`, plus `%LOCALAPPDATA%\Allians\gpca.dat`/`recas.dat`
+- **Folder structure:** C:\\Allians\\mcm\\, mcp\\, mcs\\, mcf\\Incoming\\, plus %LOCALAPPDATA%\\Allians\\gpca.dat/recas.dat
 
 ### 8.2 SAAOWNER Schema
 
@@ -1412,7 +1412,7 @@ When the Rule 6 secure-delete detection needed a `FileDelete` rule, adding it ca
 - FileDelete rule *with* `name="SENTRY"` attribute → **crashed, every time, confirmed via Windows Error Reporting crash logs**
 - FileDelete rule *without* the `name` attribute → worked cleanly
 
-Research confirmed this is not novel : Microsoft Q&A threads document the same crash pattern with FileDelete rules going back to Sysmon v12.03 on Windows 2008 R2, reportedly fixed in v13.02. Its reappearance in v15.21 suggests either a regression or a related, distinct edge case. Reported as a stability finding : see Section 12.
+Research confirmed this is not novel : Microsoft Q&A threads document the same crash pattern with FileDelete rules going back to Sysmon v12.03 on Windows 2008 R2, reportedly fixed in v13.02. Its reappearance in v15.21 suggests either a regression or a related, distinct edge case. Reported as a stability finding worth upstream reporting to the Sysinternals repository.
 
 > Important correction made along the way, worth stating explicitly: `STATUS_STACK_BUFFER_OVERRUN` (0xC0000409) is a legacy-named status code that Microsoft's own engineers have publicly clarified no longer specifically means an exploitable stack overflow : it was broadened years ago to mean "program self-triggered abnormal termination" generally (a `/GS` fast-fail). Reporting this as "found a buffer overflow bug" would be an overclaim. It is correctly reported here as a fast-fail crash, not a confirmed memory-corruption vulnerability.
 
@@ -1567,41 +1567,53 @@ Rename-Item -Path $original -NewName "nroff.exe.bak"
 
 ## 9. Testing
 
-Every rule was validated by (1) running its emulator script, (2) confirming the expected Sysmon/Oracle telemetry was actually captured, and (3) converting the rule through sigconverter.io to real SIEM/EDR query languages.
-
+Every result below reflects only what was actually run and captured in this lab, mapped to the current 13-rule numbering. Rules without a built emulator are marked **Logic-sound, untested** — the detection logic triggers on a specific, real, documented event, but has not yet been exercised against live telemetry in this environment.
 
 | Rule | Emulator run | Telemetry confirmed | Result |
 |---|---|---|---|
-| 1 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `SourceImage: powershell.exe`, `TargetImage: dummy_host.exe`, `GrantedAccess: 0x1028` |  Confirmed |
-| 2 | `simulate_sqlplus_attack.ps1` | Process tree (`cmd.exe` → `sqlplus`) + Oracle audit trail entry, `DBUSERNAME: SYS` |  Confirmed |
-| 3 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text captured, correct TEXT-then-MESG order |  Confirmed |
-| 4 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` captured |  Confirmed |
-| 5 | Dummy SWIFT message generator (mixed content types, running continuously) | Sysmon Event 11, `.prc` files created in `mcm\in\` with real field content |  Confirmed |
-| 6 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename inside `Allians\`) + Event 23 (delete of renamed file) : **required discovering FileDelete was never enabled at all, then the crash bug above** |  Confirmed, after fixing 2 real Sysmon defects |
-| 7 | `self_delete_batch_sim.ps1` | Full process tree captured: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0`; Event 11 for `.bat` creation in `%TEMP%` |  Confirmed |
-| 8 | `binary_swap_sim.ps1` | Event 11 for `nroff.exe` creation (both the pre- and post-swap versions) |  Confirmed |
+| 1 | — | — | **Logic-sound, untested** — fires on a direct FileCreate event (mcf\ directory creation); no emulator built yet |
+| 2 | — | — | **Logic-sound, untested** — fires on a direct Event 7045 (service registration); no emulator built yet |
+| 3 | `simulate_patch.ps1` against `dummy_host.exe` | Sysmon Event 10: `GrantedAccess: 0x1028` confirmed | **Partially confirmed** — the ProcessAccess sub-event is confirmed; the ImageLoad sub-event and full temporal correlation were not tested end-to-end |
+| 4 | `simulate_sqlplus_attack.ps1` | Process tree (`cmd.exe` → `sqlplus`) + Oracle audit trail entry, `DBUSERNAME: SYS` | Confirmed |
+| 5 | Manual DELETE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: DELETE`, full SQL text, correct TEXT-then-MESG order | Confirmed |
+| 6 | Manual UPDATE via SAAOWNER session | `unified_audit_trail` entry, `ACTION_NAME: UPDATE`, full SQL text with `MESG_FIN_CCY_AMOUNT` | Confirmed |
+| 7 | `self_delete_batch_sim.ps1` | Full process tree: `powershell.exe` → `cmd.exe /c evchk.bat` → `PING.EXE 0.0.0.0` | Confirmed |
+| 8 | — | — | **Logic-sound, untested** — fires on a direct ProcessCreate event (evtdiag.exe spawning evtsys.exe); the emulator used a generic parent process, not this specific relationship |
+| 9 | `self_delete_batch_sim.ps1` | Sysmon Event 11 for `evchk.bat` creation in `%TEMP%` | Confirmed |
+| 10 | `secure_delete_sim.ps1` | Sysmon Event 11 (rename) + Event 23 (delete); observed filename consistent with the rule's current regex | **Partially confirmed** — raw telemetry captured, but the corrected YAML has not been re-run against it since the fix |
+| 11a | `binary_swap_sim.ps1` | No `nroff.exe.bak` creation event captured in the data reviewed | **Logic-sound, not yet confirmed** — fires on a direct FileCreate event; the specific `.bak` event wasn't observed in this test run |
+| 11b | `binary_swap_sim.ps1` | Sysmon Event 11 for `nroff.exe` creation (captured twice) | Confirmed |
+| 12 | — | — | **Logic-sound, untested** — fires on a direct proxy/firewall log match (URI pattern); no network-layer test built yet |
+| 13 | — | — | **Logic-sound, untested** — fires on a direct FileDelete event matching a documented wildcard pattern; no emulator built yet |
 
 
 ## 10. GRC Mapping
 
-The detection content above is mapped against four frameworks relevant to a financial institution operating SWIFT infrastructure, with two genuinely important gap findings.
-This mappings  reflect SWIFT CSCF v2024, the version current at the time this research was conducted; readers should verify against the current CSCF edition at the time of use, as SWIFT publishes periodic revisions. Citations to Bank Al-Maghrib Directive 3/W/16 and Morocco's DNSSI (2023 revision) reference the specific articles/sections named inline in the table below; readers relying on these citations for compliance purposes should independently verify against the primary published texts, linked in the References section.
-
+The detection content above is mapped against four frameworks relevant to a financial institution operating SWIFT infrastructure. Mappings reflect SWIFT CSCF v2024, the version current at the time this research was conducted; readers should verify against the current CSCF edition at time of use. Citations to Bank Al-Maghrib Directive 3/W/16 and Morocco's DNSSI (2023 revision) reference specific articles/sections; readers relying on these for compliance purposes should independently verify against the primary published texts.
 
 | Rule | SWIFT CSCF v2024 | Bank Al-Maghrib 3/W/16 | DNSSI 2023 (Morocco) | ISO/IEC 27002 |
 |---|---|---|---|---|
-| 1 | **6.2 Software Integrity** : in-memory integrity checking is listed only as an *Optional Enhancement*, not mandatory. **6.5A Intrusion Detection.** | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
-| 2 | **6.4 Logging and Monitoring** : explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* | : | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
-| 3 | **6.3 Database Integrity** : "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* | : | EXP-JOURN/SURV-JOURNAL | A.8.16 |
-| 4 | **2.9 Transaction Business Controls** : explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures | : | No direct equivalent : DNSSI is a general baseline, not transaction-specific | A.8.16 |
-| 6 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV** : evidence-preservation/chain-of-custody requirement, directly on point | A.5.28 |
-| 7, 8 | **6.2 Software Integrity** (daily-cadence requirement would likely miss a same-day swap-and-revert) | : | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
+| 1 | No specific CSCF control for filesystem/directory-level anomaly detection; falls only under the general 6.4 Logging and Monitoring mandate at a generic level | — | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 2 | **6.4 Logging and Monitoring**: "operating system logs which detail abnormal system behaviour" is a named minimum required log | — | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 3 | **6.2 Software Integrity**: in-memory integrity checking is listed only as an *Optional Enhancement* ("An integrity check is performed in memory"), not mandatory | Testing-methodology alignment (grey-box scope, Art. 10) | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 4 | **6.4 Logging and Monitoring**: explicitly names "command-line history for privileged operating system accounts" as a *minimum required log* | — | EXP-JOURN/SURV-PRIVIL (nominative privileged accounts) | A.8.15 |
+| 5 | **6.3 Database Integrity**: "searches for any unexpectedly deleted records" is also only an *Optional Enhancement* | — | EXP-JOURN/SURV-JOURNAL | A.8.16 |
+| 6 | **2.9 Transaction Business Controls**: explicitly names monitoring "exceptionally high amounts" and sequential-numbering gaps as required measures | — | No direct equivalent: DNSSI is a general baseline, not transaction-specific | A.8.16 |
+| 7 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (the documented malware operates under the Administrator account) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 8 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 9 | **6.4 Logging and Monitoring**: "command-line history for privileged operating system accounts" (same basis as Rule 7) | — | EXP-JOURN/SURV-JOURNAL | A.8.15 |
+| 10 | No explicit filesystem-level anti-forensic control identified in CSCF at all | Aligned with expected pentest scope (Art. 1, 2) | **INCID-GEST-PREUV**: evidence-preservation/chain-of-custody requirement ("recueil des éléments physiques... protection et la sauvegarde de l'intégrité et l'état d'origine des preuves potentielles"), directly on point | A.5.28 |
+| 11a, 11b | **6.2 Software Integrity**: "conducted... upon start-up, and additionally at least once per day" — a daily-cadence requirement that would likely miss a same-day swap-and-revert | — | EXP-SYS-CONFIG / EXP-SYS-DURC | A.8.32 |
+| 12 | **6.5A Intrusion Detection**: implementation guidance explicitly names "unexpected connections... unexpected port or protocol use" as tracked network activity | — | EXP-JOURN/SURV-CENTR | A.8.16 |
+| 13 | No explicit coverage in CSCF (same gap class as Rule 10) | — | EXP-JOURN/SURV-JOURNAL | A.8.16 |
 
-**Two findings worth emphasizing:**
+**Findings worth emphasizing:**
 
-1. **CSCF's own text reveals that the specific control that would have caught the actual 2016 attack technique is optional, not mandatory.** In-memory (vs. at-rest) software integrity checking, and detection of unexpectedly deleted database records, are both listed as "Optional Enhancements" in the current CSCF version. An institution fully compliant with CSCF's *mandatory* tier could remain blind to precisely the technique this incident demonstrated.
+CSCF's own text reveals that the specific control that would have caught the actual 2016 attack technique is optional, not mandatory. In-memory software integrity checking and detection of unexpectedly deleted database records are both listed as "Optional Enhancements" in the current CSCF version. An institution fully compliant with CSCF's mandatory tier could remain blind to precisely the technique this incident demonstrated.
 
-2. **Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques.** DNSSI's evidence-preservation requirement (INCID-GEST-PREUV) is the closest applicable control, but it's framed as a post-incident forensic obligation, not a preventive/detective control. Rule 6 fills a real, specific gap in current framework coverage.
+Neither CSCF nor DNSSI has an explicit control for filesystem-level anti-forensic techniques or arbitrary directory-level anomaly detection. Rules 1, 10, and 13 each address a real gap in current framework coverage.
+
+6.4 Logging and Monitoring underpins the largest share of this rule set (Rules 2, 4, 7, 8, 9) — a direct, citable confirmation that the process/command-line-level logging this detection approach depends on is already a named mandatory CSCF requirement.
 
 
 ---
@@ -1613,6 +1625,7 @@ Stated plainly, not buried:
 - **No real Alliance Access.** The validation environment simulates the environment class Alliance Access operates within; it does not include the proprietary application itself, which cannot legally be obtained outside SWIFT membership.
 - **False-positive rates are not empirically measured** against production SWIFT-environment traffic, which was not accessible for this project. FP estimates reflect general security-engineering practice, not lab-measured data.
 - **SIGMA correlation-rule backend support is immature** : some Rules's Kusto conversion failure reflects current tooling maturity and may not persist as the ecosystem develops.
+- **The corrections to Oosthoek and Doerr** (recas.dat encoding, NOP sled characterization) are offered pending direct author outreach and should be treated as reproducible observations open to challenge, not settled fact.
 
 ---
 
