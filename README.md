@@ -12,7 +12,7 @@
 | Path | Contents |
 |---|---|
 | [`SENTRY01.md`](./SENTRY01.md) | The full technical report  read this first if you want the whole story |
-| [`/rules`](./rules) | this directory was deleted, but all it is content is still available in the main [`SENTRY01.md`](./SENTRY01.md)  |
+| [`/rules`](./rules) | This directory was deleted, but all it is content is still available in the main [`SENTRY01.md`](./SENTRY01.md)  |
 | [`/scripts`](./scripts) | Emulator scripts that reproduce each documented malware behavior (the real malware was never sourced or used) |
 | [`/sysmon`](./sysmon) | Working Sysmon configuration used to validate the rules |
 | [`/sql`](./sql) | Oracle schema, audit policy, and attack-simulation SQL used in the test environment |
