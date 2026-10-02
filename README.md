@@ -1,9 +1,9 @@
 # SENTRY  Behavioral Detection for the 2016 Bangladesh Bank SWIFT Toolkit
 
-**vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping  for a malware family that had zero published detection content for eight years.**
+**vendor-neutral SIGMA rules, a full reverse-engineering record, a validated simulation environment, and a regulatory mapping  for a malware family that had zero published detection content for ten years.**
 
-> 📄 **Full technical write-up:** [SENTRY01.md](./SENTRY01.md)  the complete report (static analysis, Ghidra deep-dive, attribution, IOCs, all 8 rules explained, environment build, testing, GRC mapping).
-> 📑 **Companion academic paper:** *link coming soon*
+> 📄 **Full technical write-up:** [SENTRY01.md](./SENTRY01.md)  the complete report (static analysis, Ghidra deep-dive, attribution, IOCs, all the rules explained, environment build, testing, GRC mapping).
+> 📑 **Companion academic paper:** Behavioral Detection of SWIFT Alliance Access Compromise: A Vendor-Neutral SIGMA Rule Set Derived from Extended Reverse Engineering of the 2016 Bangladesh Bank Toolkit - link coming soon
 
 ---
 
@@ -24,7 +24,7 @@ In 2016, an attacker used a three-binary Windows malware toolkit (`evtdiag.exe`,
 
 This project:
 - Extended the public reverse-engineering record of all three binaries (30+ findings not in prior public reports, including two corrections to the only peer-reviewed academic paper on this malware)
-- Derived 8 SIGMA rules from the resulting behavior taxonomy, including 2 multi-event correlation rules
+- Derived 13 SIGMA rules and 1 YARA rule from the resulting behavior taxonomy, including 2 multi-event correlation rules
 - Built and validated a full simulation environment (Windows + Oracle + the documented SWIFT Alliance Access file structure) since the real proprietary application cannot legally be obtained outside SWIFT membership
 - Converted every rule to Splunk SPL, Microsoft Sentinel (KQL), and SentinelOne EDR syntax
 - Mapped the resulting rules against SWIFT CSCF v2024, Morocco's DNSSI, Bank Al-Maghrib Directive 3/W/16, and ISO/IEC 27002
